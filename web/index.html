@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Moskvich ECU</title>
+<style>
+:root{--bg:#0e1215;--bar:#141a1f;--card:#171e24;--line:#27313a;--tx:#e8eef3;--mut:#8896a3;--acc:#4cc2ff;--ok:#3ecf8e;--warn:#f5b84b;--bad:#ff6b6b;--r:10px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:5;background:var(--bar);border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;padding:8px 14px;padding-top:calc(8px + env(safe-area-inset-top))}
+header h1{font-size:15px;margin:0;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--bad);display:inline-block;margin-right:6px}
+.dot.on{background:var(--ok)}
+.badge{font-size:12px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:99px;background:#26323c;color:var(--mut)}
+.badge.s1{background:#4a3a12;color:var(--warn)}.badge.s2{background:#10382a;color:var(--ok)}.badge.s3{background:#4a1a1a;color:var(--bad)}.badge.s4{background:#12324a;color:var(--acc)}.badge.s5{background:#3a2a52;color:#c9a0ff}
+button,.btn{font:inherit;border:1px solid var(--line);background:#202a32;color:var(--tx);border-radius:8px;padding:8px 12px;cursor:pointer;min-height:38px}
+button:active{background:#2a3742}button.pri{background:var(--acc);color:#04202e;border-color:var(--acc);font-weight:600}button.dan{border-color:#6a2a2a;color:var(--bad)}
+button:disabled{opacity:.45;cursor:default}
+main{max-width:1100px;margin:0 auto;padding:14px}
+.tab{display:none}.tab.act{display:block}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--bar);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:6}
+nav button{flex:1;border:0;border-radius:0;background:none;min-height:56px;color:var(--mut);font-size:13px}
+nav button.act{color:var(--acc);box-shadow:inset 0 2px 0 var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:14px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--mut);margin:0 0 10px;font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.tile .l{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.tile .v{font-size:34px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.15}
+.tile .u{font-size:14px;color:var(--mut);margin-left:3px;font-weight:400}
+.tile.big{grid-column:span 2}.tile.big .v{font-size:52px}
+.bar{height:6px;border-radius:3px;background:#222c34;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc);width:0}
+canvas{width:100%;height:190px;display:block;background:#10161a;border-radius:8px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--mut);margin-top:6px;flex-wrap:wrap}.legend b{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+/* map */
+.tools{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+.tools input[type=number]{width:78px}
+.gridwrap{overflow:auto;border:1px solid var(--line);border-radius:8px;max-height:calc(100vh - 290px);min-height:260px;background:#10161a;-webkit-overflow-scrolling:touch}
+table.map{border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums;font-size:12px;user-select:none;-webkit-user-select:none}
+table.map td,table.map th{min-width:40px;height:32px;text-align:center;padding:0;border-right:1px solid #0e1215;border-bottom:1px solid #0e1215}
+table.map th{position:sticky;background:var(--bar);color:var(--mut);font-weight:600;z-index:2}
+table.map thead th{top:0}table.map tbody th{left:0;min-width:56px;z-index:3}
+table.map thead th:first-child{left:0;z-index:4}
+table.map td{cursor:pointer;color:#0b1114;font-weight:600}
+table.map td.sel{outline:2px solid #fff;outline-offset:-2px}
+table.map td.near{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
+table.map td.hot{box-shadow:inset 0 0 0 3px #fff;filter:brightness(1.15)}
+table.map th input{width:100%;height:30px;background:#0b1114;border:0;color:var(--tx);text-align:center;font:inherit;font-size:12px}
+.hint{color:var(--mut);font-size:12px;margin-top:8px}
+/* forms */
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.f label{display:block;font-size:13px;margin-bottom:3px}
+.f .row{display:flex;gap:8px;align-items:center}
+input[type=number],input[type=text],select{background:#0b1114;border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:8px 10px;font:inherit;min-height:38px;width:100%}
+.f .u{color:var(--mut);font-size:13px;white-space:nowrap;min-width:46px}
+.f small{display:block;color:var(--mut);font-size:12px;margin-top:3px}
+.dw{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 10px;align-items:center;max-width:380px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:13px;font-variant-numeric:tabular-nums}.kv span:nth-child(odd){color:var(--mut)}
+.warn{background:#3a2d10;border:1px solid #6b5316;color:var(--warn);padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:12px}
+#toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#e8eef3;color:#0e1215;padding:9px 16px;border-radius:8px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20;max-width:90vw}
+#toast.show{opacity:1}#toast.err{background:var(--bad);color:#fff}
+.sticky-save{position:sticky;bottom:70px;display:flex;justify-content:flex-end;padding-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="dot" id="dot"></span>Moskvich ECU <span style="color:var(--mut);font-weight:400" id="fw"></span></h1>
+  <span class="badge" id="state">—</span>
+  <button id="saveBtn" class="pri" disabled>Save</button>
+</header>
+
+<main>
+<!-- ============================ LIVE ============================ -->
+<section class="tab act" id="t-live">
+  <div class="tiles">
+    <div class="tile big"><div class="l">Engine speed</div><div class="v"><span id="v-rpm">0</span><span class="u">rpm</span></div><div class="bar"><i id="b-rpm"></i></div></div>
+    <div class="tile"><div class="l">Spark advance</div><div class="v"><span id="v-adv">–</span><span class="u">° BTDC</span></div></div>
+    <div class="tile"><div class="l">MAP</div><div class="v"><span id="v-map">–</span><span class="u">kPa</span></div></div>
+    <div class="tile"><div class="l">Battery</div><div class="v"><span id="v-vbat">–</span><span class="u">V</span></div></div>
+    <div class="tile"><div class="l">Dwell</div><div class="v"><span id="v-dwell">–</span><span class="u">ms</span></div></div>
+    <div class="tile"><div class="l">Idle trim</div><div class="v"><span id="v-trim">0</span><span class="u">°</span></div></div>
+  </div>
+  <div class="card"><h2>Last 60 seconds</h2><canvas id="chart" width="900" height="380"></canvas>
+    <div class="legend"><span><b style="background:#4cc2ff"></b>rpm</span><span><b style="background:#f5b84b"></b>advance</span><span><b style="background:#3ecf8e"></b>MAP</span></div></div>
+</section>
+
+<!-- ============================ MAP ============================ -->
+<section class="tab" id="t-map">
+  <div class="card">
+    <h2>Ignition timing (° BTDC) — rows: rpm, columns: MAP kPa</h2>
+    <div class="tools">
+      <button data-d="-1">−1</button><button data-d="-0.5">−0.5</button><button data-d="0.5">+0.5</button><button data-d="1">+1</button>
+      <input type="number" id="setv" step="0.5" placeholder="°"><button id="btnSet">Set</button>
+      <button id="btnSmooth">Smooth</button>
+      <button id="btnRange">Range: off</button>
+      <button id="btnUndo">Undo</button>
+      <button id="btnAxes">Edit axes</button>
+    </div>
+    <div class="gridwrap"><table class="map" id="map"></table></div>
+    <div class="hint" id="maphint">Tap a cell to select it. Turn <b>Range</b> on (or hold Shift on a PC) to tap a second corner. Changes go to the ECU instantly; they are saved to flash when you press Save or the engine stops.</div>
+  </div>
+</section>
+
+<!-- ============================ SETUP ============================ -->
+<section class="tab" id="t-setup">
+  <div id="setupForms"></div>
+  <div class="card"><h2>Dwell vs battery voltage</h2>
+    <div class="dw" id="dwell"></div>
+    <small style="color:var(--mut)">How long the coil charges before each spark. Measure your coil: current should reach ~3.5–4 A (scope on a shunt) without the IGBT getting hot. Voltage is interpolated between rows.</small></div>
+  <div class="card"><h2>MAP sensor</h2>
+    <div class="f"><label>Reading</label><div class="row"><input type="text" id="mapNow" readonly><span class="u">kPa</span></div></div>
+    <div class="f" style="margin-top:10px"><label>Calibrate to atmosphere (engine OFF, hose connected)</label>
+      <div class="row"><input type="number" id="baro" value="100" step="0.1"><span class="u">kPa</span><button id="btnBaro">Calibrate</button></div>
+      <small>Enter the current local pressure (≈101.3 at sea level; ≈ 95 at 500 m). Adjusts the offset only.</small></div>
+  </div>
+  <div class="sticky-save"><button class="pri" id="applySetup">Apply settings</button></div>
+</section>
+
+<!-- ============================ TOOLS ============================ -->
+<section class="tab" id="t-tools">
+  <div class="card"><h2>Timing light</h2>
+    <div class="warn">Locks the spark at a fixed advance (ignores the map, idle control and rev retard). Use at idle to confirm the real timing matches what the ECU thinks, then adjust <b>Trigger angle</b> in Setup until they agree. Turns itself off when the ECU restarts.</div>
+    <div class="f"><label>Fixed advance</label><div class="row"><input type="number" id="lockAdv" value="10" step="0.5"><span class="u">° BTDC</span><button id="btnLock">Lock</button></div></div>
+  </div>
+  <div class="card"><h2>Bench simulator</h2>
+    <div class="warn">Generates trigger events internally so you can check spark timing on the bench with a scope or timing light — no engine needed. Remove the coil from the engine harness first; disable before connecting to a running engine.</div>
+    <div class="f"><label>Simulated speed: <b id="simv">1000</b> rpm</label><div class="row"><input type="range" id="simr" min="300" max="6500" step="50" value="1000" style="width:100%"><button id="btnSim">Start</button></div></div>
+  </div>
+  <div class="card"><h2>Backup</h2>
+    <div class="tools"><button id="btnExport">Export JSON</button><button id="btnImport">Import JSON…</button><input type="file" id="fileImport" accept=".json,application/json" hidden></div>
+    <div class="hint">Includes the full timing map, axes and every setting.</div>
+  </div>
+  <div class="card"><h2>Diagnostics</h2><div class="kv" id="diag"></div></div>
+  <div class="card"><h2>System</h2>
+    <div class="tools"><a class="btn" href="/update" style="text-decoration:none">Firmware update</a><button class="dan" id="btnDef">Reset everything to defaults…</button></div>
+    <div class="hint">Firmware updates and saving need the engine stopped.</div>
+  </div>
+</section>
+</main>
+
+<nav>
+  <button class="act" data-tab="live">Live</button>
+  <button data-tab="map">Map</button>
+  <button data-tab="setup">Setup</button>
+  <button data-tab="tools">Tools</button>
+</nav>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const MOCK = location.protocol === 'file:' || /[?&]mock/.test(location.search);
+const NR = 16, NM = 16;
+let cfg = null, live = null, connected = false;
+const STATES = ['STOPPED', 'CRANKING', 'RUNNING', 'REV CUT', 'TIMING LOCK', 'SIMULATOR'];
+
+/* ------------------------------------------------------------ helpers */
+function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = 'show' + (err ? ' err' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.className = '', 2600); }
+async function api(path, method = 'GET', body) {
+  if (MOCK) return mockApi(path, method, body);
+  const r = await fetch(path, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.msg || ('HTTP ' + r.status));
+  return j;
+}
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+function axisFind(ax, x) { // mirrors ign_axis_find in ignition_core.h
+  const n = ax.length;
+  if (x <= ax[0]) return [0, 0];
+  if (x >= ax[n - 1]) return [n - 2, 1];
+  let i = 0; while (i < n - 2 && x >= ax[i + 1]) i++;
+  const span = ax[i + 1] - ax[i];
+  return [i, span > 0 ? (x - ax[i]) / span : 0];
+}
+function lookup(t, rpm, map) {
+  const [r, fr] = axisFind(t.rpm_axis, rpm), [c, fc] = axisFind(t.map_axis, map), a = t.adv;
+  const g = (i, j) => a[i * NM + j];
+  const top = g(r, c) * (1 - fc) + g(r, c + 1) * fc, bot = g(r + 1, c) * (1 - fc) + g(r + 1, c + 1) * fc;
+  return top * (1 - fr) + bot * fr;
+}
+
+/* ------------------------------------------------------------ tabs */
+$$('nav button').forEach(b => b.onclick = () => {
+  $$('nav button').forEach(x => x.classList.toggle('act', x === b));
+  $$('.tab').forEach(t => t.classList.toggle('act', t.id === 't-' + b.dataset.tab));
+  if (b.dataset.tab === 'map') paintMap();
+});
+
+/* ------------------------------------------------------------ live */
+const hist = []; // {t,rpm,adv,map}
+function fmt(v, d = 1) { return Number(v).toFixed(d); }
+function showLive(l) {
+  live = l;
+  $('#v-rpm').textContent = Math.round(l.rpm);
+  $('#b-rpm').style.width = clamp(l.rpm / (cfg ? cfg.params.rev_hard : 6000) * 100, 0, 100) + '%';
+  $('#v-adv').textContent = l.state === 0 ? '–' : fmt(l.adv);
+  $('#v-map').textContent = fmt(l.map, 0);
+  $('#v-vbat').textContent = fmt(l.vbat);
+  $('#v-dwell').textContent = l.state === 0 ? '–' : fmt(l.dwell / 1000, 2);
+  $('#v-trim').textContent = (l.trim > 0 ? '+' : '') + fmt(l.trim);
+  const b = $('#state'); b.textContent = STATES[l.state]; b.className = 'badge s' + l.state;
+  const sb = $('#saveBtn');
+  sb.disabled = !l.dirty || !l.can_save;
+  sb.textContent = l.dirty ? (l.can_save ? 'Save' : 'Unsaved') : 'Saved';
+  $('#mapNow').value = fmt(l.map);
+  $('#btnLock').textContent = l.lock ? 'Unlock' : 'Lock';
+  $('#btnLock').className = l.lock ? 'pri' : '';
+  $('#btnSim').textContent = l.state === 5 ? 'Stop' : 'Start';
+  $('#btnSim').className = l.state === 5 ? 'pri' : '';
+  const d = l.diag, rows = [['Trigger events', d.open], ['Bounce rejected', d.bounce], ['Sparks fired', l.sparks], ['Late charge', d.late], ['Dwell limited', d.dwell_limited],
+    ['Rev cut events', d.cut], ['Coil failsafe', d.failsafe], ['MAP sensor', l.map_mv + ' mV (ADC)'], ['Free heap', d.heap], ['Uptime', d.up + ' s']];
+  $('#diag').innerHTML = rows.map(r => `<span>${r[0]}</span><span>${r[1]}</span>`).join('');
+  hist.push({ t: Date.now(), rpm: l.rpm, adv: l.adv, map: l.map });
+  while (hist.length && Date.now() - hist[0].t > 60000) hist.shift();
+  drawChart(); markNear();
+}
+function drawChart() {
+  const c = $('#chart'), g = c.getContext('2d'), W = c.width, H = c.height;
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = '#1f2a32'; g.lineWidth = 1; g.fillStyle = '#5d6b77'; g.font = '20px system-ui';
+  for (let i = 1; i < 4; i++) { const y = H * i / 4; g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+  const series = [['rpm', '#4cc2ff', 0, 7000], ['adv', '#f5b84b', -5, 50], ['map', '#3ecf8e', 0, 110]];
+  const now = Date.now();
+  for (const [k, col, lo, hi] of series) {
+    g.strokeStyle = col; g.lineWidth = 3; g.beginPath();
+    hist.forEach((p, i) => { const x = W - (now - p.t) / 60000 * W, y = H - clamp((p[k] - lo) / (hi - lo), 0, 1) * (H - 10) - 5; i ? g.lineTo(x, y) : g.moveTo(x, y); });
+    g.stroke();
+  }
+}
+
+async function poll() {
+  try {
+    const l = await api('/api/live');
+    if (!connected) { connected = true; $('#dot').classList.add('on'); if (!cfg) await loadCfg(); }
+    showLive(l);
+  } catch (e) { connected = false; $('#dot').classList.remove('on'); }
+  setTimeout(poll, document.hidden ? 1500 : 220);
+}
+
+/* ------------------------------------------------------------ config */
+async function loadCfg() {
+  cfg = await api('/api/config');
+  $('#fw').textContent = 'v' + cfg.fw;
+  buildMap(); buildSetup(); paintMap();
+}
+
+/* ------------------------------------------------------------ MAP editor */
+let sel = null, anchor = null, rangeMode = false, axesMode = false, undo = [], pending = new Set(), sendT = null, tds = [];
+const hasSel = () => sel && sel.r0 >= 0;
+function buildMap() {
+  const t = cfg.tables, tb = $('#map');
+  let h = '<thead><tr><th>rpm \\ kPa</th>';
+  for (let j = 0; j < NM; j++) h += `<th>${axesMode ? `<input type=number data-ax=map data-i=${j} value=${t.map_axis[j]}>` : t.map_axis[j]}</th>`;
+  h += '</tr></thead><tbody>';
+  for (let i = 0; i < NR; i++) {
+    h += `<tr><th>${axesMode ? `<input type=number data-ax=rpm data-i=${i} value=${t.rpm_axis[i]}>` : t.rpm_axis[i]}</th>`;
+    for (let j = 0; j < NM; j++) h += `<td data-r=${i} data-c=${j}></td>`;
+    h += '</tr>';
+  }
+  tb.innerHTML = h + '</tbody>';
+  tds = [...tb.querySelectorAll('td')];
+  tb.querySelectorAll('input[data-ax]').forEach(inp => inp.onchange = axisChanged);
+}
+function axisChanged(e) {
+  const inp = e.target, ax = inp.dataset.ax === 'rpm' ? cfg.tables.rpm_axis : cfg.tables.map_axis, i = +inp.dataset.i;
+  ax[i] = Math.round(+inp.value);
+  api('/api/config', 'POST', { tables: { [inp.dataset.ax + '_axis']: ax } }).then(loadCfg).catch(err => toast(err.message, 1));
+}
+function cellColor(v) { // blue (low) -> green -> amber -> red (high)
+  const lo = 0, hi = Math.max(40, cfg.params.trigger_adv);
+  const f = clamp((v - lo) / (hi - lo), 0, 1);
+  return `hsl(${Math.round(215 - f * 215)} 70% ${58 - f * 4}%)`;
+}
+function paintMap() {
+  if (!cfg || !$('#t-map').classList.contains('act')) return;
+  const a = cfg.tables.adv;
+  tds.forEach((td, k) => {
+    const v = a[k];
+    td.textContent = v.toFixed(1);
+    td.style.background = cellColor(v);
+    const r = k >> 4, c = k & 15;
+    td.classList.toggle('sel', hasSel() && r >= sel.r0 && r <= sel.r1 && c >= sel.c0 && c <= sel.c1);
+  });
+  markNear();
+}
+function markNear() {
+  if (!cfg || !live || !tds.length) return;
+  tds.forEach(td => td.classList.remove('near', 'hot'));
+  if (live.state === 0 || !$('#t-map').classList.contains('act')) return;
+  const [r, fr] = axisFind(cfg.tables.rpm_axis, live.rpm), [c, fc] = axisFind(cfg.tables.map_axis, live.map);
+  for (const [dr, dc] of [[0, 0], [0, 1], [1, 0], [1, 1]]) tds[(r + dr) * NM + c + dc].classList.add('near');
+  tds[(r + (fr >= .5 ? 1 : 0)) * NM + c + (fc >= .5 ? 1 : 0)].classList.add('hot');
+}
+function setSel(r, c, extend) {
+  if (!extend || !anchor) { anchor = [r, c]; }
+  sel = { r0: Math.min(anchor[0], r), r1: Math.max(anchor[0], r), c0: Math.min(anchor[1], c), c1: Math.max(anchor[1], c) };
+  paintMap();
+}
+$('#map').addEventListener('mousedown', e => { const td = e.target.closest('td'); if (!td) return; setSel(+td.dataset.r, +td.dataset.c, e.shiftKey || rangeMode); e.preventDefault(); });
+$('#map').addEventListener('mouseover', e => { if (!(e.buttons & 1)) return; const td = e.target.closest('td'); if (td && anchor) setSel(+td.dataset.r, +td.dataset.c, true); });
+$('#map').addEventListener('touchend', e => { const td = e.target.closest('td'); if (!td || e.touches.length) return; /* tap handled by click */ });
+$('#map').addEventListener('click', e => { if (e.detail === 0 || e.pointerType === 'touch' || e.pointerType === 'pen') { const td = e.target.closest('td'); if (td) setSel(+td.dataset.r, +td.dataset.c, rangeMode); } });
+$('#btnRange').onclick = () => { rangeMode = !rangeMode; $('#btnRange').textContent = 'Range: ' + (rangeMode ? 'ON' : 'off'); $('#btnRange').className = rangeMode ? 'pri' : ''; };
+$('#btnAxes').onclick = () => { axesMode = !axesMode; $('#btnAxes').className = axesMode ? 'pri' : ''; buildMap(); paintMap(); };
+
+function pushUndo() { undo.push(cfg.tables.adv.slice()); if (undo.length > 30) undo.shift(); }
+function forSel(fn) {
+  if (!hasSel()) return toast('Select a cell first', 1);
+  const a = cfg.tables.adv, lo = cfg.params.min_adv, hi = cfg.params.trigger_adv;
+  pushUndo();
+  const src = a.slice();
+  for (let r = sel.r0; r <= sel.r1; r++) for (let c = sel.c0; c <= sel.c1; c++) {
+    const k = r * NM + c, v = clamp(Math.round(fn(src, r, c, src[k]) * 2) / 2, lo, hi);
+    if (v !== a[k]) { a[k] = v; pending.add(k); }
+  }
+  paintMap(); queueSend();
+}
+$$('.tools [data-d]').forEach(b => b.onclick = () => forSel((s, r, c, v) => v + +b.dataset.d));
+$('#btnSet').onclick = () => { const x = parseFloat($('#setv').value); if (isNaN(x)) return toast('Enter a value', 1); forSel(() => x); };
+$('#btnSmooth').onclick = () => forSel((s, r, c, v) => {
+  let sum = 0, n = 0;
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const rr = r + i, cc = c + j; if (rr >= 0 && rr < NR && cc >= 0 && cc < NM) { sum += s[rr * NM + cc]; n++; } }
+  return sum / n;
+});
+$('#btnUndo').onclick = () => {
+  const prev = undo.pop(); if (!prev) return toast('Nothing to undo');
+  const a = cfg.tables.adv; prev.forEach((v, k) => { if (v !== a[k]) { a[k] = v; pending.add(k); } });
+  paintMap(); queueSend();
+};
+function queueSend() { clearTimeout(sendT); sendT = setTimeout(flushCells, 180); }
+async function flushCells() {
+  const cells = [...pending].map(k => [k >> 4, k & 15, cfg.tables.adv[k]]); pending.clear();
+  if (!cells.length) return;
+  try { await api('/api/cells', 'POST', cells); } catch (e) { toast('Send failed: ' + e.message, 1); }
+}
+document.addEventListener('keydown', e => {
+  if (!$('#t-map').classList.contains('act') || e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowUp' || e.key === '+') { forSel((s, r, c, v) => v + 0.5); e.preventDefault(); }
+  if (e.key === 'ArrowDown' || e.key === '-') { forSel((s, r, c, v) => v - 0.5); e.preventDefault(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') $('#btnUndo').click();
+});
+
+/* ------------------------------------------------------------ setup forms */
+const SETUP = [
+  { title: 'Install & trigger', f: [
+    { k: 'trigger_adv', l: 'Trigger angle', u: '° BTDC', min: 10, max: 60, step: 0.5, h: 'Crank angle at which the points open, with the distributor locked at full advance. Verify with the timing light (Tools). No map cell can exceed this.' },
+    { k: 'trigger_edge', l: 'Trigger edge', t: 'sel', o: [[0, 'Falling (points open = pin LOW)'], [1, 'Rising (points open = pin HIGH)']], h: 'Standard NPN input stage: falling.' },
+    { k: 'latency_us', l: 'Output latency', u: 'µs', min: 0, max: 500, step: 1, h: 'Fixed delay between ECU decision and spark. Use only after measuring on a scope.' },
+    { k: 'accel_comp', l: 'Acceleration compensation', u: '%', min: 0, max: 100, step: 5, h: 'Extrapolates rpm change between sparks. 0 = off (default).' },
+  ] },
+  { title: 'Cranking', f: [
+    { k: 'crank_rpm', l: 'Cranking below', u: 'rpm', min: 150, max: 800, step: 10 },
+    { k: 'crank_adv', l: 'Cranking advance', u: '° BTDC', min: -5, max: 15, step: 0.5, h: 'Retarded start timing. Higher = easier starting but more kick-back risk.' },
+  ] },
+  { title: 'Idle control', f: [
+    { k: 'idle_enable', l: 'Idle control', t: 'sel', o: [[1, 'On'], [0, 'Off']], h: 'Trims ignition timing to hold the idle speed (carb idle screw sets the base).' },
+    { k: 'idle_target', l: 'Target idle speed', u: 'rpm', min: 500, max: 2000, step: 10 },
+    { k: 'idle_map_max', l: 'Active below MAP', u: 'kPa', min: 20, max: 100, step: 1, h: 'Closed-throttle detection.' },
+    { k: 'idle_kp', l: 'Gain (P)', u: '°/100rpm', min: 0, max: 10, step: 0.1 },
+    { k: 'idle_ki', l: 'Gain (I)', u: '°/100rpm/s', min: 0, max: 10, step: 0.1 },
+    { k: 'idle_trim_max', l: 'Max trim', u: '± °', min: 0, max: 15, step: 0.5 },
+  ] },
+  { title: 'Limits & rev limiter', f: [
+    { k: 'min_adv', l: 'Minimum advance', u: '° BTDC', min: -20, max: 20, step: 0.5, h: 'Negative = after TDC.' },
+    { k: 'max_adv', l: 'Maximum advance', u: '° BTDC', min: 10, max: 60, step: 0.5, h: 'Hard ceiling on top of the map.' },
+    { k: 'adv_slew', l: 'Max change per spark', u: '°', min: 0.5, max: 20, step: 0.5, h: 'Smooths jumps from map noise or throttle stabs.' },
+    { k: 'rev_soft', l: 'Soft limit (retard starts)', u: 'rpm', min: 1000, max: 9000, step: 50 },
+    { k: 'rev_hard', l: 'Hard limit (spark cut)', u: 'rpm', min: 1500, max: 9000, step: 50 },
+    { k: 'rev_retard', l: 'Retard at hard limit', u: '°', min: 0, max: 30, step: 0.5 },
+  ] },
+  { title: 'Dwell limits', f: [
+    { k: 'min_dwell', l: 'Minimum dwell', u: 'µs', min: 500, max: 4000, step: 50 },
+    { k: 'max_dwell', l: 'Maximum dwell', u: 'µs', min: 1000, max: 8000, step: 50, h: 'Hard cap. Check coil/IGBT temperature after changing.' },
+  ] },
+  { title: 'MAP sensor calibration', f: [
+    { k: 'map_gain_x1000', l: 'Gain', u: '×1000', min: 800, max: 1200, step: 1 },
+    { k: 'map_offset', l: 'Offset', u: 'kPa', min: -30, max: 30, step: 0.1 },
+  ] },
+];
+function buildSetup() {
+  const p = cfg.params;
+  $('#setupForms').innerHTML = SETUP.map(sec => `<div class="card"><h2>${sec.title}</h2><div class="fgrid">` + sec.f.map(f => {
+    const ctl = f.t === 'sel'
+      ? `<select data-k="${f.k}">${f.o.map(o => `<option value="${o[0]}">${o[1]}</option>`).join('')}</select>`
+      : `<input type="number" data-k="${f.k}" min="${f.min}" max="${f.max}" step="${f.step}">`;
+    return `<div class="f"><label>${f.l}</label><div class="row">${ctl}${f.u ? `<span class="u">${f.u}</span>` : ''}</div>${f.h ? `<small>${f.h}</small>` : ''}</div>`;
+  }).join('') + '</div></div>').join('');
+  $$('#setupForms [data-k]').forEach(el => el.value = p[el.dataset.k]);
+  $('#dwell').innerHTML = '<b>Volts</b><b>Dwell µs</b><span></span>' + p.dwell_mv.map((mv, i) =>
+    `<input type="number" data-dmv="${i}" step="0.1" value="${(mv / 1000).toFixed(1)}"><input type="number" data-dus="${i}" step="50" value="${p.dwell_us[i]}"><span></span>`).join('');
+}
+$('#applySetup').onclick = async () => {
+  const params = {};
+  $$('#setupForms [data-k]').forEach(el => { const v = parseFloat(el.value); if (!isNaN(v)) params[el.dataset.k] = v; });
+  params.dwell_mv = $$('[data-dmv]').map(e => Math.round(parseFloat(e.value) * 1000));
+  params.dwell_us = $$('[data-dus]').map(e => Math.round(parseFloat(e.value)));
+  try { await api('/api/config', 'POST', { params }); await loadCfg(); toast('Applied'); } catch (e) { toast(e.message, 1); }
+};
+$('#btnBaro').onclick = async () => { try { await api('/api/baro', 'POST', { kpa: parseFloat($('#baro').value) }); await loadCfg(); toast('MAP calibrated'); } catch (e) { toast(e.message, 1); } };
+
+/* ------------------------------------------------------------ tools */
+$('#btnLock').onclick = async () => { try { await api('/api/lock', 'POST', { en: !(live && live.lock), adv: parseFloat($('#lockAdv').value) }); } catch (e) { toast(e.message, 1); } };
+$('#simr').oninput = e => $('#simv').textContent = e.target.value;
+$('#simr').onchange = async e => { if (live && live.state === 5) await api('/api/sim', 'POST', { rpm: +e.target.value }); };
+$('#btnSim').onclick = async () => { try { await api('/api/sim', 'POST', { rpm: live && live.state === 5 ? 0 : +$('#simr').value }); } catch (e) { toast(e.message, 1); } };
+$('#btnExport').onclick = () => {
+  const blob = new Blob([JSON.stringify({ params: cfg.params, tables: cfg.tables }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'moskvich-ecu-' + new Date().toISOString().slice(0, 10) + '.json'; a.click();
+};
+$('#btnImport').onclick = () => $('#fileImport').click();
+$('#fileImport').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const j = JSON.parse(await f.text()); await api('/api/config', 'POST', { params: j.params, tables: j.tables }); await loadCfg(); toast('Imported'); } catch (err) { toast('Import failed: ' + err.message, 1); }
+  e.target.value = '';
+};
+$('#btnDef').onclick = async () => { if (!confirm('Reset ALL settings and the timing map to defaults?')) return; try { await api('/api/defaults', 'POST', { what: 'all' }); await loadCfg(); toast('Defaults loaded'); } catch (e) { toast(e.message, 1); } };
+$('#saveBtn').onclick = async () => { try { await api('/api/save', 'POST'); toast('Saved to flash'); } catch (e) { toast(e.message, 1); } };
+
+/* ------------------------------------------------------------ mock backend (open the page from a file or add ?mock) */
+let mock = null;
+function mockApi(path, method, body) {
+  if (!mock) {
+    const rpmAx = [500, 700, 900, 1100, 1400, 1800, 2200, 2600, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500];
+    const mapAx = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 80, 85, 90, 95, 100];
+    const base = [8, 10, 13, 16, 20, 24, 26, 28, 29, 30, 30, 30, 30, 30, 30, 30], wot = [10, 10, 10, 10, 9, 9, 8, 8, 7, 7, 6, 6, 6, 6, 6, 6], adv = [];
+    for (let i = 0; i < NR; i++) for (let j = 0; j < NM; j++) { const load = Math.max(0, mapAx[j] - 35); adv.push(Math.max(6, Math.round((base[i] - wot[i] * load / 65) * 2) / 2)); }
+    mock = { fw: 'mock', params: { trigger_adv: 40, trigger_edge: 0, latency_us: 0, cylinders: 4, idle_enable: 1, accel_comp: 0, crank_rpm: 350, crank_adv: 5, min_adv: -5, max_adv: 38, rev_soft: 5600, rev_hard: 6000, rev_retard: 10, adv_slew: 4, min_dwell: 1500, max_dwell: 7000, idle_target: 850, idle_map_max: 55, idle_kp: .8, idle_ki: .6, idle_trim_max: 8, map_gain_x1000: 1000, map_offset: 0, dwell_mv: [8000, 10000, 12000, 14000, 16000], dwell_us: [5500, 4800, 4000, 3500, 3200] },
+      tables: { rpm_axis: rpmAx, map_axis: mapAx, adv }, dirty: false, lock: false, lockAdv: 10, sim: 0, t0: Date.now() };
+  }
+  return new Promise(res => setTimeout(() => {
+    if (path === '/api/config' && method === 'GET') return res(JSON.parse(JSON.stringify({ fw: mock.fw, params: mock.params, tables: mock.tables })));
+    if (path === '/api/config') { if (body.params) Object.assign(mock.params, body.params); if (body.tables) Object.assign(mock.tables, body.tables); mock.dirty = true; return res({ ok: true }); }
+    if (path === '/api/cells') { body.forEach(([r, c, v]) => mock.tables.adv[r * NM + c] = v); mock.dirty = true; return res({ ok: true }); }
+    if (path === '/api/save') { mock.dirty = false; return res({ ok: true }); }
+    if (path === '/api/lock') { mock.lock = body.en; mock.lockAdv = body.adv; return res({ ok: true }); }
+    if (path === '/api/sim') { mock.sim = body.rpm; return res({ ok: true }); }
+    if (path === '/api/baro' || path === '/api/defaults') return res({ ok: true });
+    if (path === '/api/live') {
+      const t = (Date.now() - mock.t0) / 1000, ph = t % 40;
+      let rpm = ph < 6 ? 880 + 25 * Math.sin(t * 3) : ph < 14 ? 880 + (ph - 6) / 8 * 3800 : ph < 22 ? 4680 + 300 * Math.sin(t) : ph < 30 ? 4680 - (ph - 22) / 8 * 3800 : 880;
+      if (mock.sim) rpm = mock.sim;
+      const map = ph < 6 ? 38 + 2 * Math.sin(t * 5) : ph < 14 ? 38 + (ph - 6) / 8 * 52 : ph < 22 ? 90 : ph < 30 ? 90 - (ph - 22) / 8 * 52 : 38;
+      const adv = mock.lock ? mock.lockAdv : lookup(mock.tables, rpm, map);
+      return res({ rpm, map, vbat: 13.9 + .1 * Math.sin(t), adv, trim: ph < 6 ? 0.4 * Math.sin(t) : 0, dwell: 3700, state: mock.sim ? 5 : mock.lock ? 4 : 2, coil: 0, dirty: mock.dirty, can_save: false, lock: mock.lock, lock_adv: mock.lockAdv, map_mv: 1800, sparks: Math.floor(t * 30),
+        diag: { open: Math.floor(t * 30), bounce: 0, late: 1, cut: 0, dwell_limited: 0, failsafe: 0, heap: 150000, up: Math.floor(t) } });
+    }
+    res({});
+  }, 30));
+}
+
+poll();
+</script>
+</body>
+</html>

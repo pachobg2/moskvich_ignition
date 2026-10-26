@@ -1,0 +1,5 @@
+config.h
+build/
+test/*.exe
+test/*.o
+simlog.csv
