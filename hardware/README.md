@@ -9,15 +9,18 @@ through-hole rev A).
 |---|---|
 | `schematic.svg` | One-sheet schematic (open in any browser) |
 | `pcb_top.svg`, `pcb_bottom.svg` | Board previews (both copper layers, courtyards, cut-out) |
+| `moskvich_ecu.kicad_sch` | **Editable schematic**, KiCad 7 format (every pin has a net label; no hand-routed wires). Its netlist is checked identical to the PCB's. |
+| `moskvich_ecu.kicad_pro` | Minimal KiCad project so the schematic and PCB open together |
 | `moskvich_ecu.kicad_pcb` | The PCB, KiCad 7 format (footprints embedded, tracks, vias, GND pours, outline + cut-out) |
 | `bom.csv`, `netlist.csv` | Parts list and net list |
 | `gen/pcbgen.py` | Generator: parts, placement, auto-router, design-rule check, KiCad/SVG/BOM export |
-| `gen/gen_schematic.py` | Draws `schematic.svg` |
+| `gen/gen_schematic.py` | Draws `schematic.svg` (the readable picture) |
+| `gen/gen_kicad_sch.py` | Writes `moskvich_ecu.kicad_sch` and verifies it against the PCB netlist |
 
 Regenerate everything (needs `numpy scipy shapely`):
 
 ```bash
-python hardware/gen/pcbgen.py && python hardware/gen/gen_schematic.py
+python hardware/gen/pcbgen.py && python hardware/gen/gen_schematic.py && python hardware/gen/gen_kicad_sch.py
 ```
 
 > **Status — read this.** The board was generated and checked by my own script: copper clearance ≥ 0.2 mm
@@ -27,6 +30,19 @@ python hardware/gen/pcbgen.py && python hardware/gen/gen_schematic.py
 > IPC-style land patterns I defined, not manufacturer drawings. Before ordering: open it in KiCad ≥ 7, press
 > **B** to fill the zones, run **Inspect → Design Rules Checker**, and compare every footprint with the
 > datasheet of the exact part you buy (especially the inductor, the fuse, the terminals and the module).
+
+## Opening it in KiCad or EasyEDA
+
+* **KiCad 7+:** open `moskvich_ecu.kicad_pro`. The schematic uses simple embedded symbols (boxes with named pins) and
+  the footprint names of the PCB; reassign footprints/symbols to library parts as you like, then *Update PCB from schematic*.
+* **EasyEDA:** import the files through EasyEDA's KiCad import (File → Import; menu names differ between the
+  Standard and Pro editions — I have not tried it here). Import the schematic and the PCB; if the editor
+  complains, open them in KiCad first and re-export. Replace the generic footprints with EasyEDA/LCSC library parts
+  (this also gives JLCPCB assembly part numbers).
+* The schematic is a **grouped parts-and-nets drawing**: connections are carried by net labels, not long wires.
+  `schematic.svg` is the readable hand-arranged picture of the same circuit.
+* Neither file was opened in KiCad/EasyEDA by me; the script re-reads the schematic and checks every pin's net
+  against the PCB netlist (42 symbols, 24 nets, no mismatches).
 
 ## Circuit in one paragraph
 
