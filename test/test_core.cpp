@@ -44,6 +44,29 @@ static void test_lookup() {
     in.lpg = 1; q.lpg_mode = 0; q.lpg_offset_x10 = 400;
     CHECK(ign_target_advance(&q, &t, &in, 2500, 0, q.trigger_adv_x10) <= q.max_adv_x10, "lpg offset clamped to max advance");
   }
+  {   // factory-derived maps
+    CHECK(ign_factory_adv_x10(0, 3000, 100, 100) == 310, "P-147A 3000rpm WOT (%d)", (int)ign_factory_adv_x10(0, 3000, 100, 100));
+    CHECK(ign_factory_adv_x10(0, 3000, 45, 100) == 510, "P-147A 3000rpm cruise (%d)", (int)ign_factory_adv_x10(0, 3000, 45, 100));
+    CHECK(ign_factory_adv_x10(1, 4000, 80, 100) == 455, "47.3706 4000rpm 80kPa (%d)", (int)ign_factory_adv_x10(1, 4000, 80, 100));
+    CHECK(ign_factory_adv_x10(0, 800, 40, 100) == 122, "P-147A idle has no vacuum advance (%d)", (int)ign_factory_adv_x10(0, 800, 40, 100));
+    CHECK(ign_factory_adv_x10(2, 2000, 100, 100) == 235, "P-147B 2000rpm WOT (%d)", (int)ign_factory_adv_x10(2, 2000, 100, 100));
+    CHECK(ign_factory_cent_x10(1, 1000) == 0 && ign_factory_cent_x10(1, 5000) == 190 && ign_factory_cent_x10(1, 6500) == 190, "47.3706 centrifugal ends");
+    CHECK(ign_factory_vac_x10(0, 130) == 125 && ign_factory_vac_x10(0, 200) == 200 && ign_factory_vac_x10(1, 70) == 25, "vacuum capsule points");
+    int prev = -1000;                                       // monotonic in rpm at fixed WOT (no vacuum)
+    for (int r = 600; r <= 6500; r += 50) { int v = ign_factory_adv_x10(0, r, 100, 100); CHECK(v >= prev, "centrifugal not monotonic at %d", r); prev = v; }
+    IgnParams q; ign_default_params(&q); q.trigger_adv_x10 = 1200; q.max_adv_x10 = 900;
+    IgnInputs in{}; in.map_kpa = 45;
+    q.map_sel = 1;
+    CHECK(ign_target_advance(&q, &t, &in, 3000, 0, q.trigger_adv_x10) == 510, "map_sel 1 selects the P-147A map (%d)", (int)ign_target_advance(&q, &t, &in, 3000, 0, q.trigger_adv_x10));
+    q.map_sel = 2;
+    CHECK(ign_target_advance(&q, &t, &in, 3000, 0, q.trigger_adv_x10) == 100 + 90 + 210, "map_sel 2 selects the 47.3706 map");
+    q.map_sel = 0;
+    CHECK(ign_target_advance(&q, &t, &in, 3000, 0, q.trigger_adv_x10) == ign_table_lookup(&t, t.adv_x10, 3000, 45), "map_sel 0 = custom map");
+    q.map_sel = 1; q.trigger_adv_x10 = 300; q.max_adv_x10 = 300;
+    CHECK(ign_target_advance(&q, &t, &in, 3000, 0, q.trigger_adv_x10) == 300, "factory map is clipped at the trigger angle");
+    q.map_sel = 1; q.trigger_adv_x10 = 1200; q.max_adv_x10 = 900; in.lpg = 1; q.lpg_mode = 0; q.lpg_offset_x10 = 30;
+    CHECK(ign_target_advance(&q, &t, &in, 3000, 0, q.trigger_adv_x10) == 540, "LPG offset applies on top of the selected preset");
+  }
   IgnParams p; ign_default_params(&p);
   CHECK(ign_dwell_for_voltage(&p, 12000) == 4000, "dwell @12V");
   CHECK(ign_dwell_for_voltage(&p, 13000) == 3750, "dwell @13V interp (%u)", ign_dwell_for_voltage(&p, 13000));

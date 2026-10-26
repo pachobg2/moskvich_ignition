@@ -26,6 +26,8 @@ static void paramsJson(JsonObject j, bool rd, IgnParams& p) {
   P_INT("trigger_edge", trigger_edge);
   P_INT("trigger_ref", trigger_ref);
   P_DEG("open_adv", open_adv_x10);
+  P_INT("map_sel", map_sel);
+  P_DEG("factory_static", factory_static_x10);
   P_INT("cylinders", cylinders);
   P_INT("idle_enable", idle_enable);
   P_INT("accel_comp", accel_comp_pct);
@@ -79,11 +81,24 @@ static void tablesJson(JsonObject j, bool rd, IgnTables& t) {
     if (advl.size() == IGN_NRPM * IGN_NMAP)
       for (int i = 0; i < IGN_NRPM; i++) for (int k = 0; k < IGN_NMAP; k++)
         t.adv_lpg_x10[i][k] = (int16_t)lroundf(advl[i * IGN_NMAP + k].as<float>() * 10.0f);
+    JsonArrayConst advp = j["adv_pre"];
+    if (advp.size() == 3)
+      for (int s = 0; s < 3; s++) {
+        JsonArrayConst a = advp[s];
+        if (a.size() == IGN_NRPM * IGN_NMAP)
+          for (int i = 0; i < IGN_NRPM; i++) for (int k = 0; k < IGN_NMAP; k++)
+            t.adv_pre_x10[s][i][k] = (int16_t)lroundf(a[i * IGN_NMAP + k].as<float>() * 10.0f);
+      }
   } else {
     JsonArray ra = j["rpm_axis"].to<JsonArray>(), ma = j["map_axis"].to<JsonArray>(), adv = j["adv"].to<JsonArray>(), advl = j["adv_lpg"].to<JsonArray>();
     for (int i = 0; i < IGN_NRPM; i++) ra.add(t.rpm_axis[i]);
     for (int i = 0; i < IGN_NMAP; i++) ma.add(t.map_axis[i]);
     for (int i = 0; i < IGN_NRPM; i++) for (int k = 0; k < IGN_NMAP; k++) { adv.add(t.adv_x10[i][k] / 10.0f); advl.add(t.adv_lpg_x10[i][k] / 10.0f); }
+    JsonArray advp = j["adv_pre"].to<JsonArray>();
+    for (int s = 0; s < 3; s++) {
+      JsonArray a = advp.add<JsonArray>();
+      for (int i = 0; i < IGN_NRPM; i++) for (int k = 0; k < IGN_NMAP; k++) a.add(t.adv_pre_x10[s][i][k] / 10.0f);
+    }
   }
 }
 
@@ -124,6 +139,7 @@ static void hLive() {
   d["lock_adv"] = g_lock_adv_x10 / 10.0f;
   d["map_mv"] = g_map_sensor_mv;
   d["sparks"] = g_spark_count;
+  d["map_sel"] = g_params.map_sel;
   d["lpg"] = g_lpg_active; d["lpg_in"] = g_lpg_in; d["lpg_ov"] = g_lpg_override; d["lpg_mv"] = g_lpg_mv;
   JsonObject c = d["diag"].to<JsonObject>();
   c["open"] = g_state.open_count; c["bounce"] = g_state.bounce_count; c["late"] = g_state.late_count;
@@ -164,8 +180,9 @@ static void hCells() {
   for (JsonArray c : d.as<JsonArray>()) {
     int r = c[0], k = c[1];
     if (r < 0 || r >= IGN_NRPM || k < 0 || k >= IGN_NMAP) continue;
-    int16_t (*dst)[IGN_NMAP] = (c.size() > 3 && c[3].as<int>() == 1) ? g_tables.adv_lpg_x10 : g_tables.adv_x10;
-    dst[r][k] = ign_clamp((int32_t)lroundf(c[2].as<float>() * 10.0f), g_params.min_adv_x10, g_params.trigger_adv_x10);
+    int m = c.size() > 3 ? c[3].as<int>() : 0;                // 0 custom, 1 LPG, 2..4 factory presets
+    int16_t (*dst)[IGN_NMAP] = m == 1 ? g_tables.adv_lpg_x10 : (m >= 2 && m <= 4) ? g_tables.adv_pre_x10[m - 2] : g_tables.adv_x10;
+    dst[r][k] = ign_clamp((int32_t)lroundf(c[2].as<float>() * 10.0f), g_params.min_adv_x10, 900);
   }
   g_dirty = true;
   sendOk();
@@ -197,6 +214,22 @@ static void hLock() {
   sendOk();
 }
 
+// Regenerate a factory preset slot (1..3) from the distributor data, optionally with a new static timing.
+static void hPreset() {
+  JsonDocument d;
+  if (!readBody(d)) return sendErr(400, "bad json");
+  int slot = d["slot"] | 0;
+  if (slot < 1 || slot > 3) return sendErr(400, "slot out of range");
+  if (!d["static"].isNull()) g_params.factory_static_x10 = ign_clamp((int32_t)lroundf(d["static"].as<float>() * 10.0f), -50, 200);
+  int16_t tmp[IGN_NRPM][IGN_NMAP];
+  ign_factory_fill(&g_tables, tmp, slot - 1, g_params.factory_static_x10);
+  portENTER_CRITICAL(&s_mux);
+  memcpy(g_tables.adv_pre_x10[slot - 1], tmp, sizeof tmp);
+  portEXIT_CRITICAL(&s_mux);
+  g_dirty = true;
+  sendOk();
+}
+
 static void hLpg() {
   JsonDocument d;
   if (!readBody(d)) return sendErr(400, "bad json");
@@ -211,7 +244,8 @@ static void hCopyMap() {
   readBody(d);
   int off = (int)lroundf((d["offset"] | 0.0f) * 10.0f);
   for (int i = 0; i < IGN_NRPM; i++) for (int k = 0; k < IGN_NMAP; k++)
-    g_tables.adv_lpg_x10[i][k] = ign_clamp(g_tables.adv_x10[i][k] + off, g_params.min_adv_x10, g_params.trigger_adv_x10);
+    g_tables.adv_lpg_x10[i][k] = ign_clamp(((g_params.map_sel >= 1 && g_params.map_sel <= 3) ? g_tables.adv_pre_x10[g_params.map_sel - 1][i][k] : g_tables.adv_x10[i][k]) + off,
+                                           g_params.min_adv_x10, 900);
   g_dirty = true;
   sendOk();
 }
@@ -272,6 +306,7 @@ static void webBegin() {
   server.on("/api/lock", HTTP_POST, hLock);
   server.on("/api/sim", HTTP_POST, hSim);
   server.on("/api/lpg", HTTP_POST, hLpg);
+  server.on("/api/preset", HTTP_POST, hPreset);
   server.on("/api/copymap", HTTP_POST, hCopyMap);
   server.on("/api/baro", HTTP_POST, hBaro);
   server.on("/update", HTTP_GET, []() {

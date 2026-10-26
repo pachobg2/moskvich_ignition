@@ -50,6 +50,18 @@ WiFi network — no app to install, no router needed.
   *Copy petrol → LPG* and an optional offset). The change is slewed in at the normal per-spark limit,
   never stepped. A *Force petrol / Force LPG* override in Setup helps testing without
   the valve connected (LPG tab).
+* **Factory-derived maps (Map tab → "Ignition map")**: besides your *Custom* map there are three
+  slots built from the distributor data tables of the UZAM-412 family — **P-147A**, **47.3706**,
+  **P-147B** — so the engine can run on a replica of the original advance curve and you can tune from there.
+  Total advance = static timing + centrifugal(rpm) + vacuum(MAP) × fade(rpm), using the data-sheet
+  centrifugal points (1000–5000 rpm) and the vacuum-capsule points (mmHg). Assumptions: the static
+  timing is 10° (editable, "Regenerate"); the tables are in crank degrees; vacuum = 101.3 kPa − MAP;
+  the capsule's tolerance bands are used at their middle; the capsule is fed from a *ported* carburettor
+  vacuum that is ~0 at idle, so the vacuum advance fades in between 900 and 1300 rpm; centrifugal advance
+  starts at 600 rpm and stays at its 5000 rpm value above that. **The curves reach 50–60°**, so the
+  trigger angle and *Maximum advance* must allow it (the CLOSE-edge reference at ≈120° does; a 30–40° trigger
+  clips them — the app shows how many cells are clipped and hatches them). You can edit a factory slot;
+  *Regenerate* restores its factory curve and *Copy to Custom* starts a tune from it.
 * **Cranking** uses a fixed retarded advance below `crank rpm`.
 * **Rev limiter**: retard ramp from the soft limit, spark cut above the hard limit.
 * **Idle control**: PI loop that nudges timing to hold the target idle rpm
@@ -137,3 +149,4 @@ Install, wiring and the timing-light calibration procedure are in
 | 1.4.0 | 2026-10-27 | Web interface available in Bulgarian (БГ/EN switch, default from browser language), bilingual firmware-upload page; fix: elements marked hidden (e.g. the LPG copy button on the petrol map) were still shown. |
 | 1.4.1 | 2026-10-27 | UI: hover tooltips (in both languages) on every setting and control, e.g. what Gain (P) and Gain (I) do; the web page is now stored gzip-compressed (flash use 92% -> 88%). |
 | 1.5.0 | 2026-10-27 | Targets the ESP32-C3-Zero board (new PCB in `hardware/`): pins LPG 0 / MAP 1 / VBAT 3 / POINTS 4 / COIL 6, status shown on the on-board RGB LED (GPIO10). |
+| 1.6.0 | 2026-10-28 | Three factory-derived petrol maps (P-147A, 47.3706, P-147B) selectable in the Map tab, built from the UZAM-412 distributor centrifugal + vacuum advance tables; regenerate / copy-to-custom; map cells may exceed the trigger angle (clipped at use, shown in the UI). Settings from 1.5.0 are discarded on first boot (defaults load). |

@@ -94,6 +94,20 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
 <section class="tab" id="t-map">
   <div class="card" id="mapCard">
     <h2 id="mapTitle">Ignition timing — petrol (° BTDC)</h2>
+    <div class="tools" id="slotRow">
+      <label for="mapSlot" style="color:var(--mut);font-size:13px">Ignition map</label>
+      <select id="mapSlot" style="width:auto;max-width:100%" title="Which petrol timing map the ECU uses (and you edit). The factory maps are built from the UZAM-412 distributor data tables.">
+        <option value="0">Custom (your tune)</option><option value="1">Factory P-147A (UZAM-412)</option><option value="2">Factory 47.3706</option><option value="3">Factory P-147B (UZAM-412D)</option>
+      </select>
+      <span id="presetTools" hidden>
+        <label for="facStatic" style="color:var(--mut);font-size:13px">Static timing</label>
+        <input type="number" id="facStatic" step="0.5" style="width:80px" title="Static (initial) distributor timing that the factory curve is added to when it is generated. Typically about 10 degrees."> °
+        <button id="btnRegen" title="Rebuild this slot from the distributor data tables (discards your edits to it).">Regenerate from factory curve</button>
+        <button id="btnToCustom" title="Copy this map into the Custom slot and switch to it, to start tuning from the factory curve.">Copy to Custom</button>
+      </span>
+    </div>
+    <div class="hint" id="slotHint" hidden>Factory maps are built from the distributor data tables: static timing + centrifugal advance (rpm) + vacuum advance (MAP, faded in above idle). You can edit a factory slot; “Regenerate” restores its factory curve.</div>
+    <div class="warn" id="clipNote" hidden style="margin-top:8px"></div>
     <div class="tools" id="copyRow" hidden><button id="btnCopy" title="Overwrite this LPG map with the petrol map plus an offset you choose.">Copy petrol map → this LPG map…</button></div>
     <div class="tools">
       <button data-d="-1" title="Lower the selected cells by 1 degree.">−1</button><button data-d="-0.5" title="Lower the selected cells by 0.5 degree.">−0.5</button><button data-d="0.5" title="Raise the selected cells by 0.5 degree.">+0.5</button><button data-d="1" title="Raise the selected cells by 1 degree.">+1</button>
@@ -352,6 +366,26 @@ Object.assign(BG, {
  "Battery voltage this row applies to.": "Напрежение на акумулатора, за което важи този ред.",
  "Coil charge time at that voltage, in microseconds. Longer = stronger spark but more heat; shorter = cooler but weaker.": "Време за зареждане на бобината при това напрежение, в микросекунди. По-дълго = по-силна искра, но повече топлина; по-късо = по-хладно, но по-слаба искра."
 });
+Object.assign(BG, {
+ "Ignition map": "Карта на запалване",
+ "Custom (your tune)": "Собствена (вашата настройка)",
+ "Factory P-147A (UZAM-412)": "Фабрична P-147A (УЗАМ-412)",
+ "Factory 47.3706": "Фабрична 47.3706",
+ "Factory P-147B (UZAM-412D)": "Фабрична P-147B (УЗАМ-412Д)",
+ "Static timing": "Статично запалване",
+ "Regenerate from factory curve": "Генерирай наново по фабричната крива",
+ "Copy to Custom": "Копирай в „Собствена“",
+ "Factory maps are built from the distributor data tables: static timing + centrifugal advance (rpm) + vacuum advance (MAP, faded in above idle). You can edit a factory slot; “Regenerate” restores its factory curve.": "Фабричните карти са построени по таблиците на дистрибутора: статично запалване + центробежно изпреварване (обороти) + вакуумно изпреварване (MAP, включва се плавно над празния ход). Можете да редактирате фабрична карта; „Генерирай наново“ връща фабричната ѝ крива.",
+ "Which petrol timing map the ECU uses (and you edit). The factory maps are built from the UZAM-412 distributor data tables.": "Коя бензинова карта на запалването използва блокът (и коя редактирате). Фабричните карти са построени по таблиците на дистрибутора на УЗАМ-412.",
+ "Static (initial) distributor timing that the factory curve is added to when it is generated. Typically about 10 degrees.": "Статично (начално) запалване на дистрибутора, към което се добавя фабричната крива при генерирането ѝ. Обикновено около 10 градуса.",
+ "Rebuild this slot from the distributor data tables (discards your edits to it).": "Построява наново тази карта по таблиците на дистрибутора (изхвърля вашите промени в нея).",
+ "Copy this map into the Custom slot and switch to it, to start tuning from the factory curve.": "Копира тази карта в „Собствена“ и превключва към нея, за да започнете настройката от фабричната крива.",
+ " cells exceed the limit of ": " клетки надвишават ограничението от ",
+ "° (the lower of Max advance and the Trigger angle); the ECU clips them.": "° (по-ниското от Максимално изпреварване и Ъгъл на тригера); блокът ги ограничава.",
+ "Factory curve regenerated": "Фабричната крива е генерирана наново",
+ "Copied to Custom": "Копирано в „Собствена“",
+ "slot out of range": "номерът на картата е извън диапазона"
+});
 let LANG = 'en';
 try { LANG = new URLSearchParams(location.search).get('lang') || localStorage.getItem('lang') || (/^bg/i.test(navigator.language) ? 'bg' : 'en'); } catch (e) {}
 if (LANG !== 'bg') LANG = 'en';
@@ -469,7 +503,8 @@ async function loadCfg() {
 /* ------------------------------------------------------------ MAP editor */
 let mapSel = 'main';
 const mapActive = () => $('#mapCard').closest('.tab').classList.contains('act');
-const curAdv = () => mapSel === 'lpg' ? cfg.tables.adv_lpg : cfg.tables.adv;
+const curAdv = () => mapSel === 'lpg' ? cfg.tables.adv_lpg : (cfg.params.map_sel >= 1 ? cfg.tables.adv_pre[cfg.params.map_sel - 1] : cfg.tables.adv);
+const curSlotIdx = () => mapSel === 'lpg' ? 1 : (cfg.params.map_sel >= 1 ? cfg.params.map_sel + 1 : 0);   // /api/cells map index: 0 custom, 1 LPG, 2..4 presets
 let sel = null, anchor = null, rangeMode = false, axesMode = false, undo = [], pending = new Set(), sendT = null, tds = [];
 const hasSel = () => sel && sel.r0 >= 0;
 function buildMap() {
@@ -492,18 +527,20 @@ function axisChanged(e) {
   api('/api/config', 'POST', { tables: { [inp.dataset.ax + '_axis']: ax } }).then(loadCfg).catch(err => toast(err.message, 1));
 }
 function cellColor(v) { // blue (low) -> green -> amber -> red (high)
-  const lo = 0, hi = Math.max(40, cfg.params.max_adv);
+  const lo = 0, hi = 60;
   const f = clamp((v - lo) / (hi - lo), 0, 1);
   return `hsl(${Math.round(215 - f * 215)} 70% ${58 - f * 4}%)`;
 }
 function paintMap() {
   if (!cfg || !mapActive()) return;
-  const a = curAdv();
+  const a = curAdv(), lim = Math.min(cfg.params.max_adv, cfg.params.trigger_adv);
   $('#copyRow').hidden = mapSel !== 'lpg';
+  updateSlotUi();
   tds.forEach((td, k) => {
     const v = a[k];
     td.textContent = v.toFixed(1);
     td.style.background = cellColor(v);
+    td.style.backgroundImage = v > lim + 1e-9 ? 'repeating-linear-gradient(45deg, rgba(0,0,0,.30) 0 3px, transparent 3px 7px)' : '';
     const r = k >> 4, c = k & 15;
     td.classList.toggle('sel', hasSel() && r >= sel.r0 && r <= sel.r1 && c >= sel.c0 && c <= sel.c1);
   });
@@ -559,13 +596,34 @@ $('#btnCopy').onclick = async () => {
   try { await api('/api/copymap', 'POST', { offset: parseFloat(o) || 0 }); await loadCfg(); toast('Copied petrol → LPG'); } catch (e) { toast(e.message, 1); }
 };
 $('#lpgOv').onchange = async e => { try { await api('/api/lpg', 'POST', { override: +e.target.value }); } catch (err) { toast(err.message, 1); } };
+function updateSlotUi() {
+  const main = mapSel === 'main', sl = cfg.params.map_sel;
+  $('#slotRow').hidden = !main; $('#slotHint').hidden = !(main && sl > 0); $('#presetTools').hidden = !(main && sl > 0);
+  $('#mapSlot').value = String(sl);
+  if (document.activeElement !== $('#facStatic')) $('#facStatic').value = cfg.params.factory_static;
+  const lim = Math.min(cfg.params.max_adv, cfg.params.trigger_adv);
+  const n = curAdv().filter(v => v > lim + 1e-9).length, note = $('#clipNote');
+  note.hidden = n === 0;
+  if (n) note.textContent = n + tr(' cells exceed the limit of ') + lim + tr('° (the lower of Max advance and the Trigger angle); the ECU clips them.');
+}
+$('#mapSlot').onchange = async e => {
+  flushCells(); cfg.params.map_sel = +e.target.value; undo = []; sel = null; paintMap();
+  try { await api('/api/config', 'POST', { params: { map_sel: cfg.params.map_sel } }); } catch (err) { toast(err.message, 1); }
+};
+$('#btnRegen').onclick = async () => {
+  try { await api('/api/preset', 'POST', { slot: cfg.params.map_sel, static: parseFloat($('#facStatic').value) }); await loadCfg(); toast('Factory curve regenerated'); } catch (e) { toast(e.message, 1); }
+};
+$('#btnToCustom').onclick = async () => {
+  const arr = cfg.tables.adv_pre[cfg.params.map_sel - 1].slice();
+  try { await api('/api/config', 'POST', { params: { map_sel: 0 }, tables: { adv: arr } }); await loadCfg(); toast('Copied to Custom'); } catch (e) { toast(e.message, 1); }
+};
 $('#btnRange').onclick = () => { rangeMode = !rangeMode; $('#btnRange').textContent = tr(rangeMode ? 'Range: ON' : 'Range: off'); $('#btnRange').className = rangeMode ? 'pri' : ''; };
 $('#btnAxes').onclick = () => { axesMode = !axesMode; $('#btnAxes').className = axesMode ? 'pri' : ''; buildMap(); paintMap(); };
 
 function pushUndo() { undo.push(curAdv().slice()); if (undo.length > 30) undo.shift(); }
 function forSel(fn) {
   if (!hasSel()) return toast('Select a cell first', 1);
-  const a = curAdv(), lo = cfg.params.min_adv, hi = cfg.params.trigger_adv;
+  const a = curAdv(), lo = cfg.params.min_adv, hi = 90;
   pushUndo();
   const src = a.slice();
   for (let r = sel.r0; r <= sel.r1; r++) for (let c = sel.c0; c <= sel.c1; c++) {
@@ -588,7 +646,7 @@ $('#btnUndo').onclick = () => {
 };
 function queueSend() { clearTimeout(sendT); sendT = setTimeout(flushCells, 180); }
 async function flushCells() {
-  const cells = [...pending].map(k => [k >> 4, k & 15, curAdv()[k], mapSel === 'lpg' ? 1 : 0]); pending.clear();
+  const cells = [...pending].map(k => [k >> 4, k & 15, curAdv()[k], curSlotIdx()]); pending.clear();
   if (!cells.length) return;
   try { await api('/api/cells', 'POST', cells); } catch (e) { toast(tr('Send failed:') + ' ' + tr(e.message), 1); }
 }
@@ -724,6 +782,22 @@ $('#btnDef').onclick = async () => { if (!confirm(tr('Reset ALL settings and the
 $('#saveBtn').onclick = async () => { try { await api('/api/save', 'POST'); toast('Saved to flash'); } catch (e) { toast(e.message, 1); } };
 
 /* ------------------------------------------------------------ mock backend (open the page from a file or add ?mock) */
+// JS mirror of ign_factory_adv_x10() in ignition_core.h (used only by the mock backend)
+const FAC = { rpm: [1000, 1500, 2000, 3000, 4000, 5000],
+  cent: [[4.5, 8.5, 12.5, 21, 26, 30], [0, 1, 3, 9, 14.5, 19], [4, 11.5, 13.5, 17.5, 22, 26]],
+  vac: [[[50, 0], [80, 3], [130, 12.5], [170, 20]], [[40, 0], [70, 2.5], [100, 9.5], [150, 21]], [[50, 0], [80, 3], [130, 12.5], [170, 20]]] };
+const lerp = (x, x0, x1, y0, y1) => x1 === x0 ? y0 : y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+function facAdv(slot, rpm, kpa, st) {
+  const c = FAC.cent[slot], q = FAC.vac[slot];
+  let cent = c[5];
+  if (rpm <= 600) cent = 0; else if (rpm < 1000) cent = lerp(rpm, 600, 1000, 0, c[0]);
+  else for (let i = 0; i < 5; i++) if (rpm < FAC.rpm[i + 1]) { cent = lerp(rpm, FAC.rpm[i], FAC.rpm[i + 1], c[i], c[i + 1]); break; }
+  const mm = Math.max(0, (101.3 - kpa) * 7.5);
+  let vac = q[3][1];
+  if (mm <= q[0][0]) vac = 0; else for (let i = 0; i < 3; i++) if (mm < q[i + 1][0]) { vac = lerp(mm, q[i][0], q[i + 1][0], q[i][1], q[i + 1][1]); break; }
+  return st + cent + vac * clamp((rpm - 900) / 400, 0, 1);
+}
+function genPre(slot, rpmAx, mapAx, st) { const a = []; for (const r of rpmAx) for (const m of mapAx) a.push(Math.round(facAdv(slot, r, m, st) * 10) / 10); return a; }
 let mock = null;
 function mockApi(path, method, body) {
   if (!mock) {
@@ -731,15 +805,16 @@ function mockApi(path, method, body) {
     const mapAx = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 80, 85, 90, 95, 100];
     const base = [8, 10, 13, 16, 20, 24, 26, 28, 29, 30, 30, 30, 30, 30, 30, 30], wot = [10, 10, 10, 10, 9, 9, 8, 8, 7, 7, 6, 6, 6, 6, 6, 6], adv = [];
     for (let i = 0; i < NR; i++) for (let j = 0; j < NM; j++) { const load = Math.max(0, mapAx[j] - 35); adv.push(Math.max(6, Math.round((base[i] - wot[i] * load / 65) * 2) / 2)); }
-    mock = { fw: 'mock', params: { open_adv: 10, trigger_ref: 0, lpg_mode: 0, lpg_offset: 3, map_cal_mv: [425, 4025], map_cal_kpa: [20, 100], trigger_adv: 40, trigger_edge: 0, latency_us: 0, cylinders: 4, idle_enable: 1, accel_comp: 0, crank_rpm: 350, crank_adv: 5, min_adv: -5, max_adv: 38, rev_soft: 5600, rev_hard: 6000, rev_retard: 10, adv_slew: 4, min_dwell: 1500, max_dwell: 7000, idle_target: 850, idle_map_max: 55, idle_kp: .8, idle_ki: .6, idle_trim_max: 8, map_gain_x1000: 1000, map_offset: 0, dwell_mv: [8000, 10000, 12000, 14000, 16000], dwell_us: [5500, 4800, 4000, 3500, 3200] },
-      tables: { rpm_axis: rpmAx, map_axis: mapAx, adv, adv_lpg: adv.map(v => v + 3) }, lpgOv: 0, dirty: false, lock: false, lockAdv: 10, sim: 0, t0: Date.now() };
+    mock = { fw: 'mock', params: { map_sel: 0, factory_static: 10, open_adv: 10, trigger_ref: 0, lpg_mode: 0, lpg_offset: 3, map_cal_mv: [425, 4025], map_cal_kpa: [20, 100], trigger_adv: 40, trigger_edge: 0, latency_us: 0, cylinders: 4, idle_enable: 1, accel_comp: 0, crank_rpm: 350, crank_adv: 5, min_adv: -5, max_adv: 38, rev_soft: 5600, rev_hard: 6000, rev_retard: 10, adv_slew: 4, min_dwell: 1500, max_dwell: 7000, idle_target: 850, idle_map_max: 55, idle_kp: .8, idle_ki: .6, idle_trim_max: 8, map_gain_x1000: 1000, map_offset: 0, dwell_mv: [8000, 10000, 12000, 14000, 16000], dwell_us: [5500, 4800, 4000, 3500, 3200] },
+      tables: { rpm_axis: rpmAx, map_axis: mapAx, adv, adv_lpg: adv.map(v => v + 3), adv_pre: [0, 1, 2].map(sl => genPre(sl, rpmAx, mapAx, 10)) }, lpgOv: 0, dirty: false, lock: false, lockAdv: 10, sim: 0, t0: Date.now() };
   }
   return new Promise(res => setTimeout(() => {
     if (path === '/api/config' && method === 'GET') return res(JSON.parse(JSON.stringify({ fw: mock.fw, params: mock.params, tables: mock.tables })));
     if (path === '/api/config') { if (body.params) Object.assign(mock.params, body.params); if (body.tables) Object.assign(mock.tables, body.tables); mock.dirty = true; return res({ ok: true }); }
-    if (path === '/api/cells') { body.forEach(([r, c, v, m]) => (m ? mock.tables.adv_lpg : mock.tables.adv)[r * NM + c] = v); mock.dirty = true; return res({ ok: true }); }
+    if (path === '/api/cells') { body.forEach(([r, c, v, m]) => (m === 1 ? mock.tables.adv_lpg : m >= 2 ? mock.tables.adv_pre[m - 2] : mock.tables.adv)[r * NM + c] = v); mock.dirty = true; return res({ ok: true }); }
     if (path === '/api/save') { mock.dirty = false; return res({ ok: true }); }
     if (path === '/api/lock') { mock.lock = body.en; mock.lockAdv = body.adv; return res({ ok: true }); }
+    if (path === '/api/preset') { if (!isNaN(body.static)) mock.params.factory_static = body.static; mock.tables.adv_pre[body.slot - 1] = genPre(body.slot - 1, mock.tables.rpm_axis, mock.tables.map_axis, mock.params.factory_static); mock.dirty = true; return res({ ok: true }); }
     if (path === '/api/lpg') { mock.lpgOv = body.override; return res({ ok: true }); }
     if (path === '/api/copymap') { mock.tables.adv_lpg = mock.tables.adv.map(v => v + body.offset); return res({ ok: true }); }
     if (path === '/api/sim') { mock.sim = body.rpm; return res({ ok: true }); }

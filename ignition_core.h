@@ -94,6 +94,10 @@ struct IgnParams {
   // Close-edge reference mode only: the points-OPEN edge angle (factory static timing),
   // used as the reference while cranking, when a ~120 deg prediction would be far too coarse.
   int16_t  open_adv_x10;
+  // Petrol map slot: 0 = custom (adv_x10), 1..3 = factory-derived presets (adv_pre_x10[slot-1])
+  uint8_t  map_sel;
+  uint8_t  _pad2;
+  int16_t  factory_static_x10;    // static (initial) timing used when a preset is generated
 };
 
 struct IgnTables {
@@ -101,6 +105,7 @@ struct IgnTables {
   uint16_t map_axis[IGN_NMAP];            // kPa
   int16_t  adv_x10[IGN_NRPM][IGN_NMAP];   // [rpm row][map col]  (petrol)
   int16_t  adv_lpg_x10[IGN_NRPM][IGN_NMAP]; // LPG map (used when lpg_mode = 1)
+  int16_t  adv_pre_x10[3][IGN_NRPM][IGN_NMAP]; // factory-derived petrol maps: P-147A, 47.3706, P-147B
 };
 
 struct IgnInputs {                // sampled by the caller at the moment of the open edge
@@ -193,6 +198,7 @@ IGN_ATTR static inline int32_t ign_target_advance(const IgnParams* p, const IgnT
                                                   const IgnInputs* in, uint32_t rpm, uint8_t cranking, int32_t trig_x10) {
   int32_t adv;
   int32_t hi = p->max_adv_x10 < trig_x10 ? p->max_adv_x10 : trig_x10;
+  const int16_t (*base)[IGN_NMAP] = (p->map_sel >= 1 && p->map_sel <= 3) ? t->adv_pre_x10[p->map_sel - 1] : t->adv_x10;
   if (in->lock_en) {
     adv = in->lock_adv_x10;
   } else if (cranking) {
@@ -200,9 +206,9 @@ IGN_ATTR static inline int32_t ign_target_advance(const IgnParams* p, const IgnT
   } else {
     if (in->lpg)
       adv = p->lpg_mode ? ign_table_lookup(t, t->adv_lpg_x10, (int32_t)rpm, in->map_kpa)
-                        : ign_table_lookup(t, t->adv_x10, (int32_t)rpm, in->map_kpa) + p->lpg_offset_x10;
+                        : ign_table_lookup(t, base, (int32_t)rpm, in->map_kpa) + p->lpg_offset_x10;
     else
-      adv = ign_table_lookup(t, t->adv_x10, (int32_t)rpm, in->map_kpa);
+      adv = ign_table_lookup(t, base, (int32_t)rpm, in->map_kpa);
     adv += in->idle_trim_x10;
     if (rpm > p->rev_soft_rpm && p->rev_hard_rpm > p->rev_soft_rpm) {
       int32_t span = (int32_t)p->rev_hard_rpm - (int32_t)p->rev_soft_rpm;
@@ -322,6 +328,54 @@ IGN_ATTR static inline void ign_on_open(IgnState* s, const IgnParams* p, const I
   }
 }
 
+// ------------------------------------------------- factory-derived maps
+// Data of the UZAM-412 family distributors (crank degrees):
+//   centrifugal advance at 1000 / 1500 / 2000 / 3000 / 4000 / 5000 rpm, and the vacuum capsule's advance
+//   vs vacuum in mmHg. Slot 0 = P-147A (UZAM-412), 1 = 47.3706, 2 = P-147B (UZAM-412D).
+// Total advance = static timing + centrifugal(rpm) + vacuum(MAP) * ramp(rpm).
+// Assumptions (see README): the capsule is fed from a ported carburettor vacuum that is ~0 at idle, so the
+// vacuum part fades in between 900 and 1300 rpm; manifold vacuum = (101.3 kPa - MAP); the data-sheet
+// tolerance bands are taken at their middle; centrifugal advance starts at 600 rpm and holds above 5000 rpm.
+static const int16_t IGN_FAC_RPM[6] = { 1000, 1500, 2000, 3000, 4000, 5000 };
+static const int16_t IGN_FAC_CENT[3][6] = { { 45, 85, 125, 210, 260, 300 }, { 0, 10, 30, 90, 145, 190 }, { 40, 115, 135, 175, 220, 260 } };
+static const int16_t IGN_FAC_VAC[3][4][2] = { { { 50, 0 }, { 80, 30 }, { 130, 125 }, { 170, 200 } },
+                                              { { 40, 0 }, { 70, 25 }, { 100, 95 }, { 150, 210 } },
+                                              { { 50, 0 }, { 80, 30 }, { 130, 125 }, { 170, 200 } } };
+
+static inline int32_t ign_lerp(int32_t x, int32_t x0, int32_t x1, int32_t y0, int32_t y1) {
+  return x1 == x0 ? y0 : y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+}
+
+static inline int32_t ign_factory_cent_x10(int slot, int32_t rpm) {
+  const int16_t* v = IGN_FAC_CENT[slot];
+  if (rpm <= 600) return 0;
+  if (rpm < 1000) return ign_lerp(rpm, 600, 1000, 0, v[0]);
+  for (int i = 0; i < 5; i++)
+    if (rpm < IGN_FAC_RPM[i + 1]) return ign_lerp(rpm, IGN_FAC_RPM[i], IGN_FAC_RPM[i + 1], v[i], v[i + 1]);
+  return v[5];
+}
+
+static inline int32_t ign_factory_vac_x10(int slot, int32_t mmhg) {
+  const int16_t (*q)[2] = IGN_FAC_VAC[slot];
+  if (mmhg <= q[0][0]) return 0;
+  for (int i = 0; i < 3; i++)
+    if (mmhg < q[i + 1][0]) return ign_lerp(mmhg, q[i][0], q[i + 1][0], q[i][1], q[i + 1][1]);
+  return q[3][1];
+}
+
+static inline int32_t ign_factory_adv_x10(int slot, int32_t rpm, int32_t map_kpa, int32_t static_x10) {
+  int32_t mmhg = ((1013 - map_kpa * 10) * 75) / 100;               // 101.3 kPa atmosphere, 1 kPa = 7.5 mmHg
+  if (mmhg < 0) mmhg = 0;
+  int32_t ramp = ign_clamp((rpm - 900) * 256 / 400, 0, 256);       // ported vacuum: none at idle
+  return static_x10 + ign_factory_cent_x10(slot, rpm) + ign_factory_vac_x10(slot, mmhg) * ramp / 256;
+}
+
+static inline void ign_factory_fill(const IgnTables* t, int16_t (*dst)[IGN_NMAP], int slot, int32_t static_x10) {
+  for (int i = 0; i < IGN_NRPM; i++)
+    for (int j = 0; j < IGN_NMAP; j++)
+      dst[i][j] = (int16_t)ign_factory_adv_x10(slot, t->rpm_axis[i], t->map_axis[j], static_x10);
+}
+
 // -------------------------------------------------------------- defaults
 
 static inline void ign_default_params(IgnParams* p) {
@@ -358,6 +412,9 @@ static inline void ign_default_params(IgnParams* p) {
   p->_pad1 = 0;
   p->lpg_offset_x10 = 30;
   p->open_adv_x10 = 100;
+  p->map_sel = 0;
+  p->_pad2 = 0;
+  p->factory_static_x10 = 100;
 }
 
 // Conservative starting map for a stock-ish carburetted 4-cylinder. NOT a
@@ -380,4 +437,5 @@ static inline void ign_default_tables(IgnTables* t) {
       t->adv_x10[i][j] = (int16_t)v10;
       t->adv_lpg_x10[i][j] = (int16_t)(v10 + 30 > 380 ? 380 : v10 + 30);
     }
+  for (int s = 0; s < 3; s++) ign_factory_fill(t, t->adv_pre_x10[s], s, 100);
 }
