@@ -72,19 +72,19 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
   <span class="badge s4" id="lpgBadge" hidden>LPG</span>
   <span class="badge" id="state">—</span>
   <button id="langBtn" title="Language / Език">БГ</button>
-  <button id="saveBtn" class="pri" disabled>Save</button>
+  <button id="saveBtn" class="pri" disabled title="Save the settings and maps to the ECU's flash memory. Only possible while the engine is stopped; unsaved changes are also saved automatically when the engine stops.">Save</button>
 </header>
 
 <main>
 <!-- ============================ LIVE ============================ -->
 <section class="tab act" id="t-live">
   <div class="tiles">
-    <div class="tile big"><div class="l">Engine speed</div><div class="v"><span id="v-rpm">0</span><span class="u">rpm</span></div><div class="bar"><i id="b-rpm"></i></div></div>
-    <div class="tile"><div class="l">Spark advance</div><div class="v"><span id="v-adv">–</span><span class="u">° BTDC</span></div></div>
-    <div class="tile"><div class="l">MAP</div><div class="v"><span id="v-map">–</span><span class="u">kPa</span></div></div>
-    <div class="tile"><div class="l">Battery</div><div class="v"><span id="v-vbat">–</span><span class="u">V</span></div></div>
-    <div class="tile"><div class="l">Dwell</div><div class="v"><span id="v-dwell">–</span><span class="u">ms</span></div></div>
-    <div class="tile"><div class="l">Idle trim</div><div class="v"><span id="v-trim">0</span><span class="u">°</span></div></div>
+    <div class="tile big" title="Engine speed measured from the points signal."><div class="l">Engine speed</div><div class="v"><span id="v-rpm">0</span><span class="u">rpm</span></div><div class="bar"><i id="b-rpm"></i></div></div>
+    <div class="tile"><div class="l">Spark advance</div title="Spark advance the ECU is using right now (degrees before top dead centre): map value plus corrections."><div class="v"><span id="v-adv">–</span><span class="u">° BTDC</span></div></div>
+    <div class="tile"><div class="l">MAP</div title="Manifold absolute pressure: low = throttle closed / light load, near atmospheric = wide open."><div class="v"><span id="v-map">–</span><span class="u">kPa</span></div></div>
+    <div class="tile"><div class="l">Battery</div title="Supply voltage seen by the ECU. It drives the coil charge-time compensation."><div class="v"><span id="v-vbat">–</span><span class="u">V</span></div></div>
+    <div class="tile"><div class="l">Dwell</div title="How long the coil is charged before each spark, from the dwell table for the current voltage."><div class="v"><span id="v-dwell">–</span><span class="u">ms</span></div></div>
+    <div class="tile"><div class="l">Idle trim</div title="Timing correction added by idle control (positive = more advance to raise idle speed)."><div class="v"><span id="v-trim">0</span><span class="u">°</span></div></div>
   </div>
   <div class="card"><h2>Last 60 seconds</h2><canvas id="chart" width="900" height="380"></canvas>
     <div class="legend"><span><b style="background:#4cc2ff"></b>rpm</span><span><b style="background:#f5b84b"></b>advance</span><span><b style="background:#3ecf8e"></b>MAP</span></div></div>
@@ -94,14 +94,14 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
 <section class="tab" id="t-map">
   <div class="card" id="mapCard">
     <h2 id="mapTitle">Ignition timing — petrol (° BTDC)</h2>
-    <div class="tools" id="copyRow" hidden><button id="btnCopy">Copy petrol map → this LPG map…</button></div>
+    <div class="tools" id="copyRow" hidden><button id="btnCopy" title="Overwrite this LPG map with the petrol map plus an offset you choose.">Copy petrol map → this LPG map…</button></div>
     <div class="tools">
-      <button data-d="-1">−1</button><button data-d="-0.5">−0.5</button><button data-d="0.5">+0.5</button><button data-d="1">+1</button>
-      <input type="number" id="setv" step="0.5" placeholder="°"><button id="btnSet">Set</button>
-      <button id="btnSmooth">Smooth</button>
-      <button id="btnRange">Range: off</button>
-      <button id="btnUndo">Undo</button>
-      <button id="btnAxes">Edit axes</button>
+      <button data-d="-1" title="Lower the selected cells by 1 degree.">−1</button><button data-d="-0.5" title="Lower the selected cells by 0.5 degree.">−0.5</button><button data-d="0.5" title="Raise the selected cells by 0.5 degree.">+0.5</button><button data-d="1" title="Raise the selected cells by 1 degree.">+1</button>
+      <input type="number" id="setv" step="0.5" placeholder="°" title="Value in degrees to put into the selected cells (then press Set)."><button id="btnSet" title="Put the typed value into all selected cells.">Set</button>
+      <button id="btnSmooth" title="Replace each selected cell with the average of itself and its neighbours, to remove bumps.">Smooth</button>
+      <button id="btnRange" title="When on, the next tapped cell becomes the opposite corner of a selected rectangle.">Range: off</button>
+      <button id="btnUndo" title="Undo the last edit of this map.">Undo</button>
+      <button id="btnAxes" title="Edit the rpm and MAP values of the rows and columns.">Edit axes</button>
     </div>
     <div class="gridwrap"><table class="map" id="map"></table></div>
     <div class="hint" id="maphint">Tap a cell to select it. Turn <b>Range</b> on (or hold Shift on a PC) to tap a second corner. Changes go to the ECU instantly; they are saved to flash when you press Save or the engine stops.</div>
@@ -113,17 +113,17 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
   <div class="card"><h2>LPG ignition timing</h2>
     <div class="fgrid">
       <div class="f"><label>Mode</label>
-        <select id="lpgMode"><option value="0">Static offset: petrol map + degrees</option><option value="1">Separate LPG map</option></select>
+        <select id="lpgMode" title="Static offset: LPG uses the petrol map plus a fixed number of degrees. Separate map: LPG has its own full map."><option value="0">Static offset: petrol map + degrees</option><option value="1">Separate LPG map</option></select>
         <small>LPG burns slower than petrol, so it usually wants more advance. The timing switches when the valve signal is present.</small></div>
       <div class="f" id="lpgOffWrap"><label>Static offset</label>
-        <div class="row"><input type="number" id="lpgOffset" min="-10" max="15" step="0.5"><span class="u">° (+ = more advance)</span></div>
+        <div class="row"><input type="number" id="lpgOffset" min="-10" max="15" step="0.5" title="Degrees added to every petrol map cell while LPG is active. LPG burns slower, so a few degrees more advance is usual."><span class="u">° (+ = more advance)</span></div>
         <small>Added to every cell of the petrol map while LPG is active (still limited by Max advance and the trigger angle). Changes are eased in, not stepped.</small></div>
     </div>
   </div>
   <div class="card"><h2>LPG input</h2>
     <div class="kv"><span>Valve signal</span><span id="lpgSig">–</span><span>Active map</span><span id="lpgAct">–</span></div>
     <div class="f" style="margin-top:10px"><label>Override</label>
-      <select id="lpgOv"><option value="0">Auto (follow the valve signal)</option><option value="1">Force petrol</option><option value="2">Force LPG</option></select>
+      <select id="lpgOv" title="Force a map for testing instead of following the valve signal. Not saved: returns to Auto on restart."><option value="0">Auto (follow the valve signal)</option><option value="1">Force petrol</option><option value="2">Force LPG</option></select>
       <small>Not saved; resets to Auto on restart. Useful for testing without the valve connected.</small></div>
   </div>
   <div class="card" id="lpgStatic"><h2>Static offset in use</h2>
@@ -138,38 +138,38 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
     <div class="dw" id="dwell"></div>
     <small style="color:var(--mut)">How long the coil charges before each spark. Measure your coil: current should reach ~3.5–4 A (scope on a shunt) without the IGBT getting hot. Voltage is interpolated between rows.</small></div>
   <div class="card"><h2>MAP sensor</h2>
-    <div class="f"><label>Reading</label><div class="row"><input type="text" id="mapNow" readonly><span class="u">kPa</span></div>
+    <div class="f"><label>Reading</label><div class="row"><input type="text" id="mapNow" readonly title="Manifold pressure the ECU is using right now, after calibration."><span class="u">kPa</span></div>
       <small>Sensor output now: <b id="mapMv">–</b> mV</small></div>
     <div class="f" style="margin-top:10px"><label>Two-point sensor calibration</label>
       <div class="dw"><b>Point</b><b>Sensor mV</b><b>kPa</b>
-        <span>1 (low)</span><input type="number" id="cal0mv" step="1"><input type="number" id="cal0k" step="0.1">
-        <span>2 (high)</span><input type="number" id="cal1mv" step="1"><input type="number" id="cal1k" step="0.1"></div>
-      <div class="tools" style="margin-top:8px"><button id="cap0">Capture mV → point 1</button><button id="cap1">Capture mV → point 2</button><button id="calApply" class="pri">Apply</button></div>
+        <span>1 (low)</span><input type="number" id="cal0mv" step="1" title="Sensor output voltage (mV) for calibration point 1, the low-pressure point."><input type="number" id="cal0k" step="0.1" title="Real pressure (kPa) at calibration point 1.">
+        <span>2 (high)</span><input type="number" id="cal1mv" step="1" title="Sensor output voltage (mV) for calibration point 2, the high-pressure point."><input type="number" id="cal1k" step="0.1" title="Real pressure (kPa) at calibration point 2."></div>
+      <div class="tools" style="margin-top:8px"><button id="cap0" title="Copy the sensor voltage measured right now into point 1.">Capture mV → point 1</button><button id="cap1" title="Copy the sensor voltage measured right now into point 2.">Capture mV → point 2</button><button id="calApply" class="pri" title="Send the two calibration points to the ECU.">Apply</button></div>
       <small>Works with any linear 1-bar analog sensor. Typical: point 2 = engine off at atmospheric pressure (type the local kPa, then Capture); point 1 = a known vacuum from a hand pump (e.g. 40 kPa absolute = 60 kPa below atmosphere) — or the datasheet values. Defaults are an MPX4115.</small></div>
     <div class="f" style="margin-top:10px"><label>Calibrate to atmosphere (engine OFF, hose connected)</label>
-      <div class="row"><input type="number" id="baro" value="100" step="0.1"><span class="u">kPa</span><button id="btnBaro">Calibrate</button></div>
+      <div class="row"><input type="number" id="baro" value="100" step="0.1" title="Current local atmospheric pressure in kPa (about 101.3 at sea level)."><span class="u">kPa</span><button id="btnBaro" title="With the engine OFF, make the MAP reading equal this pressure (adjusts the offset only).">Calibrate</button></div>
       <small>Enter the current local pressure (≈101.3 at sea level; ≈ 95 at 500 m). Adjusts the offset only.</small></div>
   </div>
-  <div class="sticky-save"><button class="pri" id="applySetup">Apply settings</button></div>
+  <div class="sticky-save"><button class="pri" id="applySetup" title="Send all the settings on this page to the ECU. They apply immediately; save them with the Save button.">Apply settings</button></div>
 </section>
 
 <!-- ============================ TOOLS ============================ -->
 <section class="tab" id="t-tools">
   <div class="card"><h2>Timing light</h2>
     <div class="warn">Locks the spark at a fixed advance (ignores the map, idle control and rev retard). Use at idle to confirm the real timing matches what the ECU thinks, then adjust <b>Trigger angle</b> in Setup until they agree. Turns itself off when the ECU restarts.</div>
-    <div class="f"><label>Fixed advance</label><div class="row"><input type="number" id="lockAdv" value="10" step="0.5"><span class="u">° BTDC</span><button id="btnLock">Lock</button></div></div>
+    <div class="f"><label>Fixed advance</label><div class="row"><input type="number" id="lockAdv" value="10" step="0.5" title="Spark advance to hold while the timing light lock is on."><span class="u">° BTDC</span><button id="btnLock" title="Lock the spark at the fixed advance (or release it). Ignores the map, idle control and rev retard.">Lock</button></div></div>
   </div>
   <div class="card"><h2>Bench simulator</h2>
     <div class="warn">Generates trigger events internally so you can check spark timing on the bench with a scope or timing light — no engine needed. Remove the coil from the engine harness first; disable before connecting to a running engine.</div>
-    <div class="f"><label>Simulated speed: <b id="simv">1000</b> rpm</label><div class="row"><input type="range" id="simr" min="300" max="6500" step="50" value="1000" style="width:100%"><button id="btnSim">Start</button></div></div>
+    <div class="f"><label>Simulated speed: <b id="simv">1000</b> rpm</label><div class="row"><input type="range" id="simr" title="Engine speed the simulator pretends to run at." min="300" max="6500" step="50" value="1000" style="width:100%"><button id="btnSim" title="Start or stop the simulated trigger signal.">Start</button></div></div>
   </div>
   <div class="card"><h2>Backup</h2>
-    <div class="tools"><button id="btnExport">Export JSON</button><button id="btnImport">Import JSON…</button><input type="file" id="fileImport" accept=".json,application/json" hidden></div>
+    <div class="tools"><button id="btnExport" title="Download all settings and maps as a JSON file.">Export JSON</button><button id="btnImport" title="Load settings and maps from a JSON backup file.">Import JSON…</button><input type="file" id="fileImport" accept=".json,application/json" hidden></div>
     <div class="hint">Includes the full timing map, axes and every setting.</div>
   </div>
   <div class="card"><h2>Diagnostics</h2><div class="kv" id="diag"></div></div>
   <div class="card"><h2>System</h2>
-    <div class="tools"><a class="btn" href="/update" style="text-decoration:none">Firmware update</a><button class="dan" id="btnDef">Reset everything to defaults…</button></div>
+    <div class="tools"><a class="btn" href="/update" style="text-decoration:none">Firmware update</a><button class="dan" id="btnDef" title="Restore every setting and both maps to the factory defaults.">Reset everything to defaults…</button></div>
     <div class="hint">Firmware updates and saving need the engine stopped.</div>
   </div>
 </section>
@@ -227,6 +227,7 @@ const BG = {
   'Dwell vs battery voltage': 'Заряд на бобината спрямо напрежението на акумулатора',
   'How long the coil charges before each spark. Measure your coil: current should reach ~3.5–4 A (scope on a shunt) without the IGBT getting hot. Voltage is interpolated between rows.': 'Колко дълго се зарежда бобината преди всяка искра. Измерете своята бобина: токът трябва да достига ~3,5–4 A (осцилоскоп на шънт), без IGBT транзисторът да прегрява. Напрежението се интерполира между редовете.',
   'Volts': 'Волтове', 'Dwell µs': 'Заряд µs',
+  'Manifold pressure the ECU is using right now, after calibration.': 'Налягането във всмукателния колектор, което блокът използва в момента, след калибровката.',
   'MAP sensor': 'MAP сензор', 'Reading': 'Показание', 'Sensor output now:': 'Изходно напрежение на сензора сега:',
   'Two-point sensor calibration': 'Двуточкова калибровка на сензора', 'Point': 'Точка', 'Sensor mV': 'Сензор mV', '1 (low)': '1 (ниска)', '2 (high)': '2 (висока)',
   'Capture mV → point 1': 'Вземи mV → точка 1', 'Capture mV → point 2': 'Вземи mV → точка 2', 'Apply': 'Приложи',
@@ -285,6 +286,72 @@ const BG = {
   'Overwrite the LPG map with the petrol map plus this offset (°):': 'Презапис на газовата карта с бензиновата плюс тази добавка (°):',
   'bad json': 'неверен JSON', 'engine running - stop it to save': 'двигателят работи — спрете го, за да запишете', 'flash write failed': 'грешка при запис във флаш паметта', 'kpa out of range': 'kPa е извън допустимия диапазон',
 };
+Object.assign(BG, {
+ "Which edge of the points signal the ECU uses as its position reference. OPEN edge with the distributor locked at full advance is the most accurate. CLOSE edge lets you keep the factory distributor, but the ECU has to predict further ahead.": "Кой фронт на сигнала от контактите блокът ползва като позиционна референция. Фронтът ОТВАРЯНЕ с дистрибутор, заключен на пълно изпреварване, е най-точният. Фронтът ЗАТВАРЯНЕ позволява да запазите фабричния дистрибутор, но блокът трябва да предвижда по-напред.",
+ "Crank angle (before TDC) at which the chosen points edge happens. If it is wrong, every spark is off by the same amount. Check with the timing light: if the light shows MORE advance than the ECU commanded, increase this value by the difference; if it shows less, decrease it.": "Ъгъл на колянния вал (преди ГМТ), при който настъпва избраният фронт на контактите. Ако е грешен, всяка искра е изместена със същата стойност. Проверете със стробоскоп: ако показва ПОВЕЧЕ изпреварване от зададеното, увеличете стойността с разликата; ако показва по-малко, намалете я.",
+ "Close-edge mode only. Angle at which the points OPEN with the factory distributor (static timing, about 10 degrees). Used for the spark while cranking, when a long prediction would be too inaccurate.": "Само за режим „фронт затваряне“. Ъгълът, при който контактите се ОТВАРЯТ при фабричния дистрибутор (статично запалване, около 10 градуса). Ползва се за искрата при стартиране, когато дългото предвиждане би било твърде неточно.",
+ "Polarity of the signal at the ECU pin. The standard input circuit inverts the points, so the opening edge is falling. Change only if your input stage is different.": "Полярност на сигнала на входа на блока. Стандартната входна схема обръща сигнала от контактите, така че отварянето е падащ фронт. Сменяйте само ако входното ви стъпало е различно.",
+ "Compensates a fixed delay in the output stage between the ECU's decision and the real spark. Raising it makes every spark come earlier by that many microseconds (the effect grows with rpm). Leave at 0 unless you measured the delay with a scope or see the timing drift with rpm.": "Компенсира постоянно закъснение в изходното стъпало между решението на блока и реалната искра. Увеличаването му изстрелва всяка искра по-рано с толкова микросекунди (ефектът расте с оборотите). Оставете 0, освен ако не сте измерили закъснението с осцилоскоп или не виждате отклонение на ъгъла с оборотите.",
+ "Extrapolates the speed trend between sparks: if the engine is speeding up or slowing down, the ECU assumes it keeps doing so. 0 = assume constant speed, 100 = full extrapolation. Reduces timing error in hard acceleration or lift-off; strongly recommended in close-edge mode.": "Екстраполира тенденцията на оборотите между искрите: ако двигателят ускорява или забавя, блокът приема, че продължава. 0 = постоянни обороти, 100 = пълна екстраполация. Намалява грешката на ъгъла при рязко ускорение или отпускане; силно препоръчително в режим „фронт затваряне“.",
+ "Below this speed the ECU is in cranking mode (fixed start advance); above it (plus 10%) it switches to the normal map. Set it between the starter speed and the lowest stable idle speed.": "Под тези обороти блокът е в режим стартиране (фиксирано изпреварване); над тях (плюс 10%) преминава към нормалната карта. Задайте стойност между оборотите на стартера и най-ниския стабилен празен ход.",
+ "Fixed spark advance while cranking. Higher = easier starting but more risk of kick-back against the starter; lower = safer but harder starting.": "Фиксирано изпреварване на искрата при стартиране. По-високо = по-лесен старт, но повече риск от обратен удар срещу стартера; по-ниско = по-безопасно, но по-труден старт.",
+ "Turns idle-speed control on or off. When on, the ECU adds or removes a little ignition advance to hold the target idle speed while the throttle is closed. It does not move the throttle or the carburettor.": "Включва или изключва управлението на празния ход. Когато е включено, блокът добавя или маха малко изпреварване, за да държи целевите обороти, докато дроселът е затворен. Не движи дроселната клапа или карбуратора.",
+ "The idle speed the ECU tries to hold with ignition timing. Set the carburettor idle screw slightly below this value and let the ignition trim bring the speed up.": "Оборотите на празен ход, които блокът се опитва да държи чрез запалването. Настройте винта на карбуратора малко под тази стойност и оставете корекцията на запалването да вдигне оборотите.",
+ "Idle control only works while manifold pressure is below this value (a sign the throttle is closed). If control switches off at idle, raise it; if it interferes when you open the throttle, lower it.": "Управлението на празния ход работи само докато налягането във всмукателния колектор е под тази стойност (признак за затворен дросел). Ако се изключва на празен ход, увеличете я; ако пречи при отваряне на дроселa, намалете я.",
+ "Proportional gain: how many degrees of timing correction are added at once for every 100 rpm the idle is away from the target. Higher = stronger, faster reaction but the idle may hunt (oscillate); lower = gentler but slower.": "Пропорционално усилване: колко градуса корекция на запалването се добавят веднага за всеки 100 об/мин отклонение на празния ход от целта. По-високо = по-силна и бърза реакция, но празният ход може да „лази“ (да се колебае); по-ниско = по-плавно, но по-бавно.",
+ "Integral gain: how fast the correction keeps growing (degrees per 100 rpm of error, per second) while the idle stays off target. It removes the remaining steady error. Higher = reaches the target sooner but may overshoot and hunt; 0 = no long-term correction.": "Интегрално усилване: колко бързо корекцията продължава да расте (градуси за 100 об/мин грешка в секунда), докато празният ход е извън целта. Премахва остатъчната постоянна грешка. По-високо = по-бързо достига целта, но може да я надхвърли и да „лази“; 0 = без дългосрочна корекция.",
+ "Largest correction idle control may add or remove (plus or minus). Limits how far it can move the timing away from the map value.": "Най-голямата корекция, която управлението на празния ход може да добави или отнеме (плюс или минус). Ограничава докъде може да отклони запалването от стойността в картата.",
+ "Lowest advance the ECU will ever use (negative = after TDC). Protects against too much retard from map edits or idle trim.": "Най-малкото изпреварване, което блокът ще използва (отрицателно = след ГМТ). Предпазва от прекалено закъснение заради редакции на картата или корекцията на празния ход.",
+ "Highest advance the ECU will ever use, whatever the map says. It cannot exceed the trigger angle.": "Най-голямото изпреварване, което блокът ще използва, независимо какво пише в картата. Не може да надвишава ъгъла на тригера.",
+ "Largest change of advance allowed from one spark to the next. Lower = smoother, calmer response to MAP noise and throttle stabs; higher = faster response.": "Най-голямата промяна на изпреварването между две последователни искри. По-ниско = по-плавна и спокойна реакция на шум в MAP и рязко газене; по-високо = по-бърза реакция.",
+ "From this speed the ECU gradually retards the spark, as a gentle warning before the hard limit.": "От тези обороти блокът постепенно закъснява искрата, като мек сигнал преди твърдия лимит.",
+ "Above this speed the spark is cut completely (rev limiter). Do not set it above the engine's safe limit.": "Над тези обороти искрата се спира напълно (ограничител на оборотите). Не задавайте над безопасния лимит на двигателя.",
+ "Retard applied when the speed reaches the hard limit; it ramps in linearly starting at the soft limit.": "Закъснение, прилагано при достигане на твърдия лимит; нараства линейно от мекия лимит нататък.",
+ "Shortest coil charging time the ECU will use, whatever the voltage table says. Too short gives a weak spark.": "Най-краткото време за зареждане на бобината, което блокът ще използва, независимо от таблицата за напрежение. Прекалено късо дава слаба искра.",
+ "Longest coil charging time allowed. A longer dwell heats the coil and the IGBT; check their temperature after raising it.": "Най-дългото позволено време за зареждане на бобината. По-дългото време загрява бобината и IGBT транзистора; проверете температурата им след увеличаване.",
+ "Multiplier applied to the MAP reading (1000 = x1.000). Corrects a scale error of the sensor; normally set by the two-point calibration.": "Множител върху показанието на MAP (1000 = x1,000). Коригира грешка в мащаба на сензора; обикновено се задава от двуточковата калибровка.",
+ "Offset in kPa added to the MAP reading. The ‘Calibrate to atmosphere’ button sets it for you.": "Отместване в kPa, добавено към показанието на MAP. Бутонът „Калибрирай по атмосферно налягане“ го задава вместо вас.",
+ "Save the settings and maps to the ECU's flash memory. Only possible while the engine is stopped; unsaved changes are also saved automatically when the engine stops.": "Записва настройките и картите във флаш паметта на блока. Възможно е само при спрян двигател; незаписаните промени се записват и автоматично при спиране на двигателя.",
+ "Engine speed measured from the points signal.": "Обороти на двигателя, измерени от сигнала на контактите.",
+ "Spark advance the ECU is using right now (degrees before top dead centre): map value plus corrections.": "Изпреварването на искрата, което блокът използва в момента (градуси преди ГМТ): стойност от картата плюс корекции.",
+ "Manifold absolute pressure: low = throttle closed / light load, near atmospheric = wide open.": "Абсолютно налягане във всмукателния колектор: ниско = затворен дросел / малко натоварване, близо до атмосферното = дроселът е отворен докрай.",
+ "Supply voltage seen by the ECU. It drives the coil charge-time compensation.": "Захранващото напрежение, което вижда блокът. Определя компенсацията на времето за зареждане на бобината.",
+ "How long the coil is charged before each spark, from the dwell table for the current voltage.": "Колко дълго се зарежда бобината преди всяка искра, според таблицата за заряд при текущото напрежение.",
+ "Timing correction added by idle control (positive = more advance to raise idle speed).": "Корекция на запалването от управлението на празния ход (положителна = повече изпреварване за повишаване на оборотите).",
+ "Lower the selected cells by 1 degree.": "Намалява избраните клетки с 1 градус.",
+ "Lower the selected cells by 0.5 degree.": "Намалява избраните клетки с 0,5 градуса.",
+ "Raise the selected cells by 0.5 degree.": "Увеличава избраните клетки с 0,5 градуса.",
+ "Raise the selected cells by 1 degree.": "Увеличава избраните клетки с 1 градус.",
+ "Value in degrees to put into the selected cells (then press Set).": "Стойност в градуси за избраните клетки (след това натиснете „Задай“).",
+ "Put the typed value into all selected cells.": "Записва въведената стойност във всички избрани клетки.",
+ "Replace each selected cell with the average of itself and its neighbours, to remove bumps.": "Заменя всяка избрана клетка със средната стойност на нея и съседите ѝ, за да премахне неравности.",
+ "When on, the next tapped cell becomes the opposite corner of a selected rectangle.": "Когато е включено, следващата докосната клетка става противоположен ъгъл на избран правоъгълник.",
+ "Undo the last edit of this map.": "Отменя последната редакция на тази карта.",
+ "Edit the rpm and MAP values of the rows and columns.": "Редактира стойностите на оборотите и MAP за редовете и колоните.",
+ "Overwrite this LPG map with the petrol map plus an offset you choose.": "Презаписва тази газова карта с бензиновата плюс добавка по ваш избор.",
+ "Static offset: LPG uses the petrol map plus a fixed number of degrees. Separate map: LPG has its own full map.": "Постоянна добавка: на газ се ползва бензиновата карта плюс фиксиран брой градуси. Отделна карта: газът има собствена пълна карта.",
+ "Degrees added to every petrol map cell while LPG is active. LPG burns slower, so a few degrees more advance is usual.": "Градуси, добавени към всяка клетка на бензиновата карта, докато е активен газът. Газът гори по-бавно, затова обикновено е нужно още няколко градуса изпреварване.",
+ "Force a map for testing instead of following the valve signal. Not saved: returns to Auto on restart.": "Принудително избира карта за тест вместо да следва сигнала от вентила. Не се записва: след рестарт се връща на „Автоматично“.",
+ "Current local atmospheric pressure in kPa (about 101.3 at sea level).": "Текущо местно атмосферно налягане в kPa (около 101,3 на морското равнище).",
+ "With the engine OFF, make the MAP reading equal this pressure (adjusts the offset only).": "При ИЗГАСЕН двигател кара показанието на MAP да е равно на това налягане (коригира само отместването).",
+ "Sensor output voltage (mV) for calibration point 1, the low-pressure point.": "Изходно напрежение на сензора (mV) за калибровъчна точка 1, ниското налягане.",
+ "Real pressure (kPa) at calibration point 1.": "Реално налягане (kPa) в калибровъчна точка 1.",
+ "Sensor output voltage (mV) for calibration point 2, the high-pressure point.": "Изходно напрежение на сензора (mV) за калибровъчна точка 2, високото налягане.",
+ "Real pressure (kPa) at calibration point 2.": "Реално налягане (kPa) в калибровъчна точка 2.",
+ "Copy the sensor voltage measured right now into point 1.": "Копира измереното в момента напрежение на сензора в точка 1.",
+ "Copy the sensor voltage measured right now into point 2.": "Копира измереното в момента напрежение на сензора в точка 2.",
+ "Send the two calibration points to the ECU.": "Изпраща двете калибровъчни точки към блока.",
+ "Send all the settings on this page to the ECU. They apply immediately; save them with the Save button.": "Изпраща всички настройки от тази страница към блока. Прилагат се веднага; запишете ги с бутона „Запис“.",
+ "Spark advance to hold while the timing light lock is on.": "Изпреварване на искрата, което се държи, докато заключването за стробоскоп е включено.",
+ "Lock the spark at the fixed advance (or release it). Ignores the map, idle control and rev retard.": "Заключва искрата на фиксирано изпреварване (или го освобождава). Игнорира картата, празния ход и закъснението при ограничителя.",
+ "Engine speed the simulator pretends to run at.": "Обороти, с които симулаторът имитира работа.",
+ "Start or stop the simulated trigger signal.": "Стартира или спира симулирания тригер сигнал.",
+ "Download all settings and maps as a JSON file.": "Изтегля всички настройки и карти като JSON файл.",
+ "Load settings and maps from a JSON backup file.": "Зарежда настройки и карти от резервен JSON файл.",
+ "Restore every setting and both maps to the factory defaults.": "Връща всички настройки и двете карти към фабричните стойности.",
+ "Battery voltage this row applies to.": "Напрежение на акумулатора, за което важи този ред.",
+ "Coil charge time at that voltage, in microseconds. Longer = stronger spark but more heat; shorter = cooler but weaker.": "Време за зареждане на бобината при това напрежение, в микросекунди. По-дълго = по-силна искра, но повече топлина; по-късо = по-хладно, но по-слаба искра."
+});
 let LANG = 'en';
 try { LANG = new URLSearchParams(location.search).get('lang') || localStorage.getItem('lang') || (/^bg/i.test(navigator.language) ? 'bg' : 'en'); } catch (e) {}
 if (LANG !== 'bg') LANG = 'en';
@@ -298,6 +365,7 @@ function applyLang(root = document.body) {          // translate static / genera
     const o = n.nodeValue, key = o.trim().replace(/\s+/g, ' ');
     if (key && BG[key]) n.nodeValue = o.replace(o.trim(), BG[key]);
   }
+  root.querySelectorAll('[title]').forEach(el => { const k = el.getAttribute('title'); if (BG[k]) el.setAttribute('title', BG[k]); });
 }
 function setLang(l) {
   try { localStorage.setItem('lang', l); } catch (e) {}
@@ -532,6 +600,32 @@ document.addEventListener('keydown', e => {
 });
 
 /* ------------------------------------------------------------ setup forms */
+const TIPS = {
+  trigger_ref: "Which edge of the points signal the ECU uses as its position reference. OPEN edge with the distributor locked at full advance is the most accurate. CLOSE edge lets you keep the factory distributor, but the ECU has to predict further ahead.",
+  trigger_adv: "Crank angle (before TDC) at which the chosen points edge happens. If it is wrong, every spark is off by the same amount. Check with the timing light: if the light shows MORE advance than the ECU commanded, increase this value by the difference; if it shows less, decrease it.",
+  open_adv: "Close-edge mode only. Angle at which the points OPEN with the factory distributor (static timing, about 10 degrees). Used for the spark while cranking, when a long prediction would be too inaccurate.",
+  trigger_edge: "Polarity of the signal at the ECU pin. The standard input circuit inverts the points, so the opening edge is falling. Change only if your input stage is different.",
+  latency_us: "Compensates a fixed delay in the output stage between the ECU's decision and the real spark. Raising it makes every spark come earlier by that many microseconds (the effect grows with rpm). Leave at 0 unless you measured the delay with a scope or see the timing drift with rpm.",
+  accel_comp: "Extrapolates the speed trend between sparks: if the engine is speeding up or slowing down, the ECU assumes it keeps doing so. 0 = assume constant speed, 100 = full extrapolation. Reduces timing error in hard acceleration or lift-off; strongly recommended in close-edge mode.",
+  crank_rpm: "Below this speed the ECU is in cranking mode (fixed start advance); above it (plus 10%) it switches to the normal map. Set it between the starter speed and the lowest stable idle speed.",
+  crank_adv: "Fixed spark advance while cranking. Higher = easier starting but more risk of kick-back against the starter; lower = safer but harder starting.",
+  idle_enable: "Turns idle-speed control on or off. When on, the ECU adds or removes a little ignition advance to hold the target idle speed while the throttle is closed. It does not move the throttle or the carburettor.",
+  idle_target: "The idle speed the ECU tries to hold with ignition timing. Set the carburettor idle screw slightly below this value and let the ignition trim bring the speed up.",
+  idle_map_max: "Idle control only works while manifold pressure is below this value (a sign the throttle is closed). If control switches off at idle, raise it; if it interferes when you open the throttle, lower it.",
+  idle_kp: "Proportional gain: how many degrees of timing correction are added at once for every 100 rpm the idle is away from the target. Higher = stronger, faster reaction but the idle may hunt (oscillate); lower = gentler but slower.",
+  idle_ki: "Integral gain: how fast the correction keeps growing (degrees per 100 rpm of error, per second) while the idle stays off target. It removes the remaining steady error. Higher = reaches the target sooner but may overshoot and hunt; 0 = no long-term correction.",
+  idle_trim_max: "Largest correction idle control may add or remove (plus or minus). Limits how far it can move the timing away from the map value.",
+  min_adv: "Lowest advance the ECU will ever use (negative = after TDC). Protects against too much retard from map edits or idle trim.",
+  max_adv: "Highest advance the ECU will ever use, whatever the map says. It cannot exceed the trigger angle.",
+  adv_slew: "Largest change of advance allowed from one spark to the next. Lower = smoother, calmer response to MAP noise and throttle stabs; higher = faster response.",
+  rev_soft: "From this speed the ECU gradually retards the spark, as a gentle warning before the hard limit.",
+  rev_hard: "Above this speed the spark is cut completely (rev limiter). Do not set it above the engine's safe limit.",
+  rev_retard: "Retard applied when the speed reaches the hard limit; it ramps in linearly starting at the soft limit.",
+  min_dwell: "Shortest coil charging time the ECU will use, whatever the voltage table says. Too short gives a weak spark.",
+  max_dwell: "Longest coil charging time allowed. A longer dwell heats the coil and the IGBT; check their temperature after raising it.",
+  map_gain_x1000: "Multiplier applied to the MAP reading (1000 = x1.000). Corrects a scale error of the sensor; normally set by the two-point calibration.",
+  map_offset: "Offset in kPa added to the MAP reading. The ‘Calibrate to atmosphere’ button sets it for you."
+};
 const SETUP = [
   { title: 'Install & trigger', f: [
     { k: 'trigger_ref', l: 'Trigger reference', t: 'sel', o: [[0, 'Points OPEN edge — distributor locked at full advance (≈40°)'], [1, 'Points CLOSE edge — factory distributor (≈120°)']],
@@ -577,7 +671,7 @@ function buildSetup() {
     const ctl = f.t === 'sel'
       ? `<select data-k="${f.k}">${f.o.map(o => `<option value="${o[0]}">${o[1]}</option>`).join('')}</select>`
       : `<input type="number" data-k="${f.k}" min="${f.min}" max="${f.max}" step="${f.step}">`;
-    return `<div class="f"><label>${f.l}</label><div class="row">${ctl}${f.u ? `<span class="u">${f.u}</span>` : ''}</div>${f.h ? `<small>${f.h}</small>` : ''}</div>`;
+    return `<div class="f" title="${TIPS[f.k] || ''}"><label>${f.l}</label><div class="row">${ctl}${f.u ? `<span class="u">${f.u}</span>` : ''}</div>${f.h ? `<small>${f.h}</small>` : ''}</div>`;
   }).join('') + '</div></div>').join('');
   $$('#setupForms [data-k]').forEach(el => el.value = p[el.dataset.k]);
   const refSel = $('#setupForms [data-k=trigger_ref]');
@@ -592,7 +686,7 @@ function buildSetup() {
   };
   showRef();
   $('#dwell').innerHTML = '<b>Volts</b><b>Dwell µs</b><span></span>' + p.dwell_mv.map((mv, i) =>
-    `<input type="number" data-dmv="${i}" step="0.1" value="${(mv / 1000).toFixed(1)}"><input type="number" data-dus="${i}" step="50" value="${p.dwell_us[i]}"><span></span>`).join('');
+    `<input type="number" data-dmv="${i}" step="0.1" value="${(mv / 1000).toFixed(1)}" title="Battery voltage this row applies to."><input type="number" data-dus="${i}" step="50" value="${p.dwell_us[i]}" title="Coil charge time at that voltage, in microseconds. Longer = stronger spark but more heat; shorter = cooler but weaker."><span></span>`).join('');
 }
 $('#applySetup').onclick = async () => {
   const params = {};

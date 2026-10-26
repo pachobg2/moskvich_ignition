@@ -262,7 +262,7 @@ static bool authOk() {
 }
 
 static void webBegin() {
-  server.on("/", HTTP_GET, []() { server.sendHeader("Cache-Control", "no-cache"); server.send_P(200, "text/html", WEB_UI_HTML); });
+  server.on("/", HTTP_GET, []() { server.sendHeader("Cache-Control", "no-cache"); server.sendHeader("Content-Encoding", "gzip"); server.send_P(200, "text/html; charset=utf-8", (PGM_P)WEB_UI_GZ, WEB_UI_GZ_LEN); });
   server.on("/api/live", HTTP_GET, hLive);
   server.on("/api/config", HTTP_GET, hConfigGet);
   server.on("/api/config", HTTP_POST, hConfigPost);
