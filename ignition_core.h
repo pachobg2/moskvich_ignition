@@ -12,6 +12,12 @@
 //
 //     spark_delay = (trigger_adv - target_adv) / 180deg * last_period
 //
+// `trigger_ref` picks which points edge is the reference. OPEN with the
+// distributor locked at full advance (~40deg) is the most accurate; CLOSE
+// (~120deg before the spark's TDC, distributor left at the factory 10deg) keeps
+// the stock distributor but predicts further ahead. Nothing else changes: the
+// ISR just listens to the other edge and the trigger angle is larger.
+//
 // (180deg = crank angle between sparks on a 4-cylinder; `period` is the time
 // between the last two open events.)
 //
@@ -70,7 +76,8 @@ struct IgnParams {
   // Idle control (ignition-trim PI)
   uint16_t idle_target_rpm;
   uint8_t  idle_map_max_kpa;      // idle control only below this MAP (closed throttle)
-  uint8_t  _pad0;
+  uint8_t  trigger_ref;           // 0 = points OPEN edge (distributor locked at full advance, ~40 deg)
+                                  // 1 = points CLOSE edge (factory distributor, ~120 deg): same maths, longer horizon
   int16_t  idle_kp;               // trim x10 deg per 100 rpm error
   int16_t  idle_ki;               // integral, same units per second
   int16_t  idle_trim_max_x10;
@@ -84,6 +91,9 @@ struct IgnParams {
   uint8_t  lpg_mode;
   uint8_t  _pad1;
   int16_t  lpg_offset_x10;
+  // Close-edge reference mode only: the points-OPEN edge angle (factory static timing),
+  // used as the reference while cranking, when a ~120 deg prediction would be far too coarse.
+  int16_t  open_adv_x10;
 };
 
 struct IgnTables {
@@ -180,9 +190,9 @@ IGN_ATTR static inline uint32_t ign_rpm_from_period(const IgnParams* p, uint32_t
 
 // Final target advance for this spark (before slew limiting).
 IGN_ATTR static inline int32_t ign_target_advance(const IgnParams* p, const IgnTables* t,
-                                                  const IgnInputs* in, uint32_t rpm, uint8_t cranking) {
+                                                  const IgnInputs* in, uint32_t rpm, uint8_t cranking, int32_t trig_x10) {
   int32_t adv;
-  int32_t hi = p->max_adv_x10 < p->trigger_adv_x10 ? p->max_adv_x10 : p->trigger_adv_x10;
+  int32_t hi = p->max_adv_x10 < trig_x10 ? p->max_adv_x10 : trig_x10;
   if (in->lock_en) {
     adv = in->lock_adv_x10;
   } else if (cranking) {
@@ -204,8 +214,8 @@ IGN_ATTR static inline int32_t ign_target_advance(const IgnParams* p, const IgnT
 }
 
 // Open edge -> spark delay (relative to the edge) for a target advance.
-IGN_ATTR static inline uint32_t ign_spark_delay_us(const IgnParams* p, int32_t adv_x10, uint32_t period_us) {
-  int32_t retard_x10 = (int32_t)p->trigger_adv_x10 - adv_x10;     // deg x10 AFTER the trigger
+IGN_ATTR static inline uint32_t ign_spark_delay_us(const IgnParams* p, int32_t trig_x10, int32_t adv_x10, uint32_t period_us) {
+  int32_t retard_x10 = trig_x10 - adv_x10;     // deg x10 AFTER the trigger
   if (retard_x10 < 0) retard_x10 = 0;
   int32_t deg_per_event_x10 = 7200 / p->cylinders;                // 1800 for a 4-cyl
   uint64_t d = ((uint64_t)retard_x10 * period_us) / (uint32_t)deg_per_event_x10;
@@ -227,8 +237,12 @@ static inline void ign_stall_check(IgnState* s, uint32_t now_us) {
 
 // The points just OPENED. Decide what to do. The caller executes the actions
 // (arming the spark timer etc.) and keeps s->coil_on current.
+// `trig_x10` is the crank angle (deg BTDC x10 of the cylinder being fired) at which THIS
+// edge occurs. `track_only` keeps the speed measurement going but produces no actions
+// (used for the edge stream that is not currently driving the spark).
 IGN_ATTR static inline void ign_on_open(IgnState* s, const IgnParams* p, const IgnTables* t,
-                                        const IgnInputs* in, uint32_t now, IgnActions* a) {
+                                        const IgnInputs* in, uint32_t now, IgnActions* a,
+                                        int32_t trig_x10, uint8_t track_only) {
   a->rejected = a->coil_now = a->spark_valid = a->coil_valid = 0;
   a->spark_in_us = a->coil_in_us = 0;
 
@@ -256,6 +270,11 @@ IGN_ATTR static inline void ign_on_open(IgnState* s, const IgnParams* p, const I
   if (s->cranking) { if (s->rpm > p->crank_rpm + p->crank_rpm / 10) s->cranking = 0; }
   else             { if (s->rpm < p->crank_rpm - p->crank_rpm / 5)  s->cranking = 1; }
 
+  if (track_only) {                       // keep slew continuity for the moment the other stream hands over
+    if (s->cranking) s->last_adv_x10 = (int16_t)ign_clamp(p->crank_adv_x10, p->min_adv_x10, trig_x10);
+    return;
+  }
+
   // period used for placing the spark (optionally extrapolated while accelerating)
   int32_t T = (int32_t)s->period_us;
   if (!s->cranking && s->have_prev_period && p->accel_comp_pct) {
@@ -263,7 +282,7 @@ IGN_ATTR static inline void ign_on_open(IgnState* s, const IgnParams* p, const I
     T = ign_clamp(T + d, T - T / 4, T + T / 4);
   }
 
-  int32_t target = ign_target_advance(p, t, in, s->rpm, s->cranking);
+  int32_t target = ign_target_advance(p, t, in, s->rpm, s->cranking, trig_x10);
   int32_t adv = target;
   if (!s->cranking && !in->lock_en)
     adv = ign_clamp(target, s->last_adv_x10 - p->adv_slew_x10, s->last_adv_x10 + p->adv_slew_x10);
@@ -273,7 +292,7 @@ IGN_ATTR static inline void ign_on_open(IgnState* s, const IgnParams* p, const I
   s->cut = (!s->cranking && p->rev_hard_rpm && s->rpm > p->rev_hard_rpm);
   uint32_t dwell = ign_dwell_for_voltage(p, in->vbat_mv);
   s->dwell_us = dwell;
-  uint32_t delay = ign_spark_delay_us(p, adv, (uint32_t)T);
+  uint32_t delay = ign_spark_delay_us(p, trig_x10, adv, (uint32_t)T);
 
   if (s->cut) {
     s->cut_count++;
@@ -327,7 +346,7 @@ static inline void ign_default_params(IgnParams* p) {
   p->max_dwell_us = 7000;
   p->idle_target_rpm = 850;
   p->idle_map_max_kpa = 55;
-  p->_pad0 = 0;
+  p->trigger_ref = 0;
   p->idle_kp = 8;
   p->idle_ki = 6;
   p->idle_trim_max_x10 = 80;
@@ -338,6 +357,7 @@ static inline void ign_default_params(IgnParams* p) {
   p->lpg_mode = 0;
   p->_pad1 = 0;
   p->lpg_offset_x10 = 30;
+  p->open_adv_x10 = 100;
 }
 
 // Conservative starting map for a stock-ish carburetted 4-cylinder. NOT a

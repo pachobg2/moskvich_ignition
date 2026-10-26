@@ -24,6 +24,8 @@ static void paramsJson(JsonObject j, bool rd, IgnParams& p) {
   P_DEG("trigger_adv", trigger_adv_x10);
   P_INT("latency_us", latency_us);
   P_INT("trigger_edge", trigger_edge);
+  P_INT("trigger_ref", trigger_ref);
+  P_DEG("open_adv", open_adv_x10);
   P_INT("cylinders", cylinders);
   P_INT("idle_enable", idle_enable);
   P_INT("accel_comp", accel_comp_pct);

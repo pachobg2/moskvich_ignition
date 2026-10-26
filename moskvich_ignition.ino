@@ -112,8 +112,8 @@ void setup() {
   storeDefaults();
   bool loaded = storeLoad();
   sanitize(g_params, g_tables);
-  ign_reset(&g_state);
-  g_state.last_adv_x10 = g_params.crank_adv_x10;
+  ign_reset(&g_state); ign_reset(&g_stateO);
+  g_state.last_adv_x10 = g_stateO.last_adv_x10 = g_params.crank_adv_x10;
   Serial.printf("\nMoskvich ECU fw %s, settings %s\n", FIRMWARE_VERSION, loaded ? "loaded" : "DEFAULT");
 
   for (int i = 0; i < 40; i++) { sampleAnalog(); delay(2); }   // let the filters settle before first spark
@@ -140,6 +140,7 @@ void loop() {
   if (ms - s_lastCtl >= 50) {
     s_lastCtl = ms;
     ign_stall_check(&g_state, (uint32_t)esp_timer_get_time());
+    ign_stall_check(&g_stateO, (uint32_t)esp_timer_get_time());
     idleControl();
     lpgUpdate();
     bool running = engineRunning();

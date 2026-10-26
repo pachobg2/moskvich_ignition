@@ -33,16 +33,16 @@ static void test_lookup() {
   {
     IgnParams q; ign_default_params(&q);
     IgnInputs in{}; in.map_kpa = 45;
-    int32_t petrol = ign_target_advance(&q, &t, &in, 2500, 0);
+    int32_t petrol = ign_target_advance(&q, &t, &in, 2500, 0, q.trigger_adv_x10);
     in.lpg = 1; q.lpg_mode = 0; q.lpg_offset_x10 = 40;
-    CHECK(ign_target_advance(&q, &t, &in, 2500, 0) == petrol + 40, "lpg static offset");
+    CHECK(ign_target_advance(&q, &t, &in, 2500, 0, q.trigger_adv_x10) == petrol + 40, "lpg static offset");
     q.lpg_mode = 1; t.adv_lpg_x10[6][4] = 111; t.adv_lpg_x10[6][5] = 111; t.adv_lpg_x10[7][4] = 111; t.adv_lpg_x10[7][5] = 111;
     in.map_kpa = 42;
-    CHECK(ign_target_advance(&q, &t, &in, 2400, 0) == 111, "lpg separate map (%d)", (int)ign_target_advance(&q, &t, &in, 2400, 0));
+    CHECK(ign_target_advance(&q, &t, &in, 2400, 0, q.trigger_adv_x10) == 111, "lpg separate map (%d)", (int)ign_target_advance(&q, &t, &in, 2400, 0, q.trigger_adv_x10));
     in.lpg = 0;
-    CHECK(ign_target_advance(&q, &t, &in, 2400, 0) != 111, "petrol unaffected by lpg map");
+    CHECK(ign_target_advance(&q, &t, &in, 2400, 0, q.trigger_adv_x10) != 111, "petrol unaffected by lpg map");
     in.lpg = 1; q.lpg_mode = 0; q.lpg_offset_x10 = 400;
-    CHECK(ign_target_advance(&q, &t, &in, 2500, 0) <= q.max_adv_x10, "lpg offset clamped to max advance");
+    CHECK(ign_target_advance(&q, &t, &in, 2500, 0, q.trigger_adv_x10) <= q.max_adv_x10, "lpg offset clamped to max advance");
   }
   IgnParams p; ign_default_params(&p);
   CHECK(ign_dwell_for_voltage(&p, 12000) == 4000, "dwell @12V");
@@ -51,7 +51,7 @@ static void test_lookup() {
   CHECK(ign_dwell_for_voltage(&p, 20000) == 3200, "dwell high clamp");
   CHECK(ign_rpm_from_period(&p, 37500) == 800, "rpm from period (%u)", ign_rpm_from_period(&p, 37500));
   // 800 rpm: 37.5 ms per 180deg. 30deg retard = 1/6 of that = 6250 us
-  CHECK(ign_spark_delay_us(&p, 100, 37500) == 6250, "delay (%u)", ign_spark_delay_us(&p, 100, 37500));
+  CHECK(ign_spark_delay_us(&p, p.trigger_adv_x10, 100, 37500) == 6250, "delay (%u)", ign_spark_delay_us(&p, p.trigger_adv_x10, 100, 37500));
 }
 
 // -------------------------------------------------------------------- sim
@@ -73,25 +73,35 @@ struct SimOpts {
 static Result run(const SimOpts& o, IgnParams p, IgnTables t, int skip_first = 3, IgnState* out_state = nullptr) {
   Result R;
   p.accel_comp_pct = o.accel_comp;
-  IgnState s{}; ign_reset(&s);
-  s.last_adv_x10 = p.crank_adv_x10;
+  const bool B = p.trigger_ref != 0;
+  IgnState s{}, so{}; ign_reset(&s); ign_reset(&so);
+  s.last_adv_x10 = so.last_adv_x10 = p.crank_adv_x10;
   IgnInputs in{}; in.map_kpa = o.map_kpa; in.vbat_mv = o.vbat; in.lock_en = o.lock; in.lock_adv_x10 = o.lock_adv;
 
-  const double trig = p.trigger_adv_x10 / 10.0;
+  const double trig = p.trigger_adv_x10 / 10.0, openAdv = p.open_adv_x10 / 10.0;
   double theta = 0;                              // crank angle, deg
-  long k = 0;                                    // next event index
-  auto open_theta = [&](long kk) { return 180.0 * kk + 180.0 - trig; };
-  auto tdc_theta  = [&](long kk) { return 180.0 * kk + 180.0; };
-  // timers (absolute us, <0 = idle)
+  long ko = 0, kc = 0;                           // next open / close event index
+  // open edge k: before TDC k (open-edge mode: trigger angle; close-edge mode: factory static angle)
+  auto open_theta  = [&](long kk) { return 180.0 * kk + 180.0 - (B ? openAdv : trig); };
+  // close edge k: aimed at the TDC of cylinder k+1, `trig` degrees before it
+  auto close_theta = [&](long kk) { return 180.0 * kk + 360.0 - trig; };
+  auto tdc_theta   = [&](long kk) { return 180.0 * kk + 180.0; };
   double spark_at = -1, coil_at = -1; long spark_k = -1; double coil_on_since = 0;
-  struct Pend { double at; int kind; long k; };   // delayed (latency) edge deliveries
+  struct Pend { double at; int kind; long k; };   // kind 0 = open, 1 = close, 2 = bounce close (ignored)
   std::vector<Pend> pend;
   double sum_abs = 0;
-  std::vector<double> bounce_at;
 
-  auto fire_open = [&](double now_us, long kk) {
+  auto fire = [&](double now_us, long kk, bool isOpen) {
     IgnActions a;
-    ign_on_open(&s, &p, &t, &in, (uint32_t)now_us, &a);
+    uint8_t wasCr = s.cranking;
+    if (!B) ign_on_open(&s, &p, &t, &in, (uint32_t)now_us, &a, p.trigger_adv_x10, 0);
+    else if (isOpen) {
+      so.coil_on = s.coil_on;
+      uint8_t active = s.cranking;
+      ign_on_open(&so, &p, &t, &in, (uint32_t)now_us, &a, p.open_adv_x10, !active);
+      if (active) s.adv_x10 = so.adv_x10;
+    } else ign_on_open(&s, &p, &t, &in, (uint32_t)now_us, &a, p.trigger_adv_x10, s.cranking);
+    if (s.cranking != wasCr) coil_at = -1;       // stream handover
     if (a.rejected) return;
     if (a.coil_now) { s.coil_on = 1; coil_on_since = now_us; }
     if (a.spark_valid) { spark_at = now_us + a.spark_in_us; spark_k = kk; }
@@ -104,18 +114,21 @@ static Result run(const SimOpts& o, IgnParams p, IgnTables t, int skip_first = 3
     theta += rpm * 360.0 / 60e6;
 
     if (!stalled) {
-      if (theta >= open_theta(k)) {                 // points open
-        long kk = k++;
+      if (theta >= open_theta(ko)) {
+        long kk = ko++;
         pend.push_back({now + o.isr_latency_us, 0, kk});
-        if (o.bounce_us > 0) { pend.push_back({now + o.bounce_us + o.isr_latency_us, 2, kk}); pend.push_back({now + o.bounce_us * 1.5 + o.isr_latency_us, 0, kk}); }
+        if (o.bounce_us > 0 && !B) { pend.push_back({now + o.bounce_us + o.isr_latency_us, 2, kk}); pend.push_back({now + o.bounce_us * 1.5 + o.isr_latency_us, 0, kk}); }
       }
+      if (B && theta >= close_theta(kc)) { long kk = kc++; pend.push_back({now + o.isr_latency_us, 1, kk + 1}); }
     } else {
-      if (theta >= open_theta(k)) { k++; }          // engine "stopped" but keep angle bookkeeping sane
+      while (theta >= open_theta(ko)) ko++;           // engine "stopped" but keep angle bookkeeping sane
+      if (B) while (theta >= close_theta(kc)) kc++;
     }
     for (size_t i = 0; i < pend.size();) {
       if (pend[i].at <= now) {
         Pend e = pend[i]; pend.erase(pend.begin() + i);
-        if (e.kind == 0) fire_open(now, e.k);   // kind 2 = bounce close edge: carries no information
+        if (e.kind == 0) fire(now, e.k, true);
+        else if (e.kind == 1) fire(now, e.k, false);
       } else i++;
     }
     if (coil_at >= 0 && now >= coil_at) {
@@ -132,7 +145,7 @@ static Result run(const SimOpts& o, IgnParams p, IgnTables t, int skip_first = 3
           double adv = tdc_theta(spark_k) - theta;                 // deg BTDC actually achieved
           double want = s.adv_x10 / 10.0;
           double err = adv - want;
-          if (k > skip_first && !stalled) {
+          if (ko > skip_first && !stalled) {
             R.sparks++; sum_abs += fabs(err);
             if (err > R.max_over) R.max_over = err;               // positive = MORE advanced than intended
             if (fabs(err) > R.max_err) R.max_err = fabs(err);
@@ -142,12 +155,11 @@ static Result run(const SimOpts& o, IgnParams p, IgnTables t, int skip_first = 3
         }
       }
     }
-    if (stalled && s.have_edge == 0) {}
-    if ((long)now % 1000 == 0) ign_stall_check(&s, (uint32_t)now);
+    if ((long)now % 1000 == 0) { ign_stall_check(&s, (uint32_t)now); ign_stall_check(&so, (uint32_t)now); }
   }
-  R.expected = (int)(k - skip_first);
+  R.expected = (int)(ko - skip_first);
   R.mean_abs = R.sparks ? sum_abs / R.sparks : 0;
-  R.no_charge = (int)s.late_count;
+  R.no_charge = (int)(s.late_count + so.late_count);
   if (out_state) *out_state = s;
   return R;
 }
@@ -173,6 +185,41 @@ int main() {
     CHECK(r.max_dwell <= p.max_dwell_us + 100, "%s: dwell too long %u", nm, r.max_dwell);
     CHECK(r.min_dwell >= 1400, "%s: dwell too short %u", nm, r.min_dwell);
     CHECK(r.failsafe == 0, "%s: failsafe fired", nm);
+  }
+
+  printf("close-edge reference (trigger angle 120 deg, factory distributor)\n");
+  {
+    IgnParams pb = p; pb.trigger_adv_x10 = 1200; pb.trigger_ref = 1; pb.open_adv_x10 = 100;
+    for (int rpm : { 900, 3000, 5800 }) {
+      SimOpts o; o.rpm = [=](double) { return (double)rpm; }; o.end_us = 2.5e6; o.map_kpa = 45;
+      char nm[64]; snprintf(nm, sizeof nm, "ref=close %d rpm", rpm);
+      Result r = run(o, pb, t, 5); report(nm, r);
+      CHECK(r.sparks >= r.expected - 3, "%s: missed sparks %d/%d", nm, r.sparks, r.expected);
+      CHECK(r.max_err < 0.2, "%s: error %.2f", nm, r.max_err);
+      CHECK(r.failsafe == 0, "%s: failsafe", nm);
+    }
+    SimOpts a; a.rpm = [](double tt) { return 1000 + (5500 - 1000) * (tt / 4e6); }; a.end_us = 4e6; a.map_kpa = 85;
+    for (int comp : { 0, 100 }) {
+      a.accel_comp = (uint8_t)comp;
+      char nm[64]; snprintf(nm, sizeof nm, "ref=close 1000->5500 in 4s (comp %d%%)", comp);
+      Result r = run(a, pb, t); report(nm, r);
+      CHECK(r.max_err < 3.0, "%s: error %.2f", nm, r.max_err);
+    }
+    SimOpts q; q.rpm = [](double tt) { return 3000 - 2200 * (tt / 1.0e6); }; q.end_us = 1.0e6;
+    for (int comp : { 0, 100 }) {
+      q.accel_comp = (uint8_t)comp;
+      char nm[64]; snprintf(nm, sizeof nm, "ref=close 3000->800 in 1s (comp %d%%)", comp);
+      Result r = run(q, pb, t); report(nm, r);
+      if (comp == 100) CHECK(r.max_over < 3.0, "ref=close decel over-advance with comp %.2f", r.max_over);
+    }
+    SimOpts c; c.end_us = 3e6;
+    c.rpm = [](double tt) { return 150.0 * (1.0 + 0.15 * sin(tt / 1e6 * 2 * 3.14159 * 2.5)); };
+    Result rc = run(c, pb, t); report("ref=close cranking 150 +-15%", rc);
+    CHECK(rc.max_over < 3.5, "ref=close cranking over-advance %.2f", rc.max_over);
+    SimOpts h; h.end_us = 4e6;
+    h.rpm = [](double tt) { return tt < 1.5e6 ? 180.0 : (tt < 2.5e6 ? 180.0 + (900.0 - 180.0) * (tt - 1.5e6) / 1e6 : 900.0); };
+    Result rh = run(h, pb, t); report("ref=close 180->900 catch", rh);
+    CHECK(rh.failsafe == 0 && rh.max_over < 3.0, "ref=close handover over-advance %.2f", rh.max_over);
   }
 
   printf("accel / decel\n");

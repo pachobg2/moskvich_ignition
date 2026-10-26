@@ -6,7 +6,7 @@
 
 struct StoreHdr { uint32_t magic; uint16_t ver; uint16_t sz_params; uint16_t sz_tables; uint16_t crc; };
 static const uint32_t STORE_MAGIC = 0x4D534B34;   // "MSK4"
-static const uint16_t STORE_VER = 3;
+static const uint16_t STORE_VER = 4;
 
 volatile bool g_dirty = false;
 
@@ -28,11 +28,14 @@ static bool engineRunning() { return g_state.have_edge || g_sim_on; }
 static void sanitize(IgnParams& p, IgnTables& t) {
   p.cylinders = (p.cylinders == 6 || p.cylinders == 8) ? p.cylinders : 4;
   p.trigger_edge = p.trigger_edge ? 1 : 0;
-  p.trigger_adv_x10 = ign_clamp(p.trigger_adv_x10, 100, 600);
+  p.trigger_ref = p.trigger_ref ? 1 : 0;
   p.latency_us = ign_clamp(p.latency_us, 0, 500);
   p.accel_comp_pct = p.accel_comp_pct > 100 ? 100 : p.accel_comp_pct;
   p.crank_rpm = ign_clamp(p.crank_rpm, 150, 800);
   p.min_adv_x10 = ign_clamp(p.min_adv_x10, -200, 200);
+  // The spark must land before the NEXT reference edge (delay < 180 deg), so
+  // trigger - min_adv must stay under ~170 deg.
+  p.trigger_adv_x10 = ign_clamp(p.trigger_adv_x10, 100, 1700 + p.min_adv_x10 < 1600 ? 1700 + p.min_adv_x10 : 1600);
   p.max_adv_x10 = ign_clamp(p.max_adv_x10, p.min_adv_x10, p.trigger_adv_x10);
   p.crank_adv_x10 = ign_clamp(p.crank_adv_x10, p.min_adv_x10, ign_clamp(150, p.min_adv_x10, p.max_adv_x10));
   p.rev_hard_rpm = ign_clamp(p.rev_hard_rpm, 1500, 9000);
@@ -52,6 +55,7 @@ static void sanitize(IgnParams& p, IgnTables& t) {
   p.idle_trim_max_x10 = ign_clamp(p.idle_trim_max_x10, 0, 150);
   p.map_gain_x1000 = ign_clamp(p.map_gain_x1000, 800, 1200);
   p.map_offset_x10 = ign_clamp(p.map_offset_x10, -300, 300);
+  p.open_adv_x10 = ign_clamp(p.open_adv_x10, 0, 450);
   p.lpg_mode = p.lpg_mode ? 1 : 0;
   p.lpg_offset_x10 = ign_clamp(p.lpg_offset_x10, -100, 150);
   if (p.map_cal_mv[1] < p.map_cal_mv[0] + 200 || p.map_cal_kpa_x10[1] < p.map_cal_kpa_x10[0] + 100 ||

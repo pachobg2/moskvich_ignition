@@ -311,7 +311,7 @@ function axisChanged(e) {
   api('/api/config', 'POST', { tables: { [inp.dataset.ax + '_axis']: ax } }).then(loadCfg).catch(err => toast(err.message, 1));
 }
 function cellColor(v) { // blue (low) -> green -> amber -> red (high)
-  const lo = 0, hi = Math.max(40, cfg.params.trigger_adv);
+  const lo = 0, hi = Math.max(40, cfg.params.max_adv);
   const f = clamp((v - lo) / (hi - lo), 0, 1);
   return `hsl(${Math.round(215 - f * 215)} 70% ${58 - f * 4}%)`;
 }
@@ -421,7 +421,10 @@ document.addEventListener('keydown', e => {
 /* ------------------------------------------------------------ setup forms */
 const SETUP = [
   { title: 'Install & trigger', f: [
-    { k: 'trigger_adv', l: 'Trigger angle', u: '° BTDC', min: 10, max: 60, step: 0.5, h: 'Crank angle at which the points open, with the distributor locked at full advance. Verify with the timing light (Tools). No map cell can exceed this.' },
+    { k: 'trigger_ref', l: 'Trigger reference', t: 'sel', o: [[0, 'Points OPEN edge — distributor locked at full advance (≈40°)'], [1, 'Points CLOSE edge — factory distributor (≈120°)']],
+      h: 'OPEN is the most accurate. CLOSE lets you keep the factory 10° distributor (weights blocked at rest, vacuum capsule disconnected), but predicts ~3× further ahead: expect more error while accelerating and cranking, and the closing edge bounces. Changing this sets a typical trigger angle: re-calibrate it with the timing light.' },
+    { k: 'trigger_adv', l: 'Trigger angle', u: '° BTDC', min: 10, max: 160, step: 0.5, h: 'Crank angle before the firing cylinder\'s TDC at which the selected points edge occurs. Verify with the timing light (Tools). No map cell can exceed this.' },
+    { k: 'open_adv', l: 'Points-open angle (cranking)', u: '° BTDC', min: 0, max: 45, step: 0.5, h: 'Close-edge mode only: where the points OPEN with the factory distributor (static timing, ≈10°). Used as the reference while cranking, because predicting 120° ahead is too coarse at cranking-speed variation.' },
     { k: 'trigger_edge', l: 'Trigger edge', t: 'sel', o: [[0, 'Falling (points open = pin LOW)'], [1, 'Rising (points open = pin HIGH)']], h: 'Standard NPN input stage: falling.' },
     { k: 'latency_us', l: 'Output latency', u: 'µs', min: 0, max: 500, step: 1, h: 'Fixed delay between ECU decision and spark. Use only after measuring on a scope.' },
     { k: 'accel_comp', l: 'Acceleration compensation', u: '%', min: 0, max: 100, step: 5, h: 'Extrapolates rpm change between sparks. 0 = off (default).' },
@@ -464,6 +467,17 @@ function buildSetup() {
     return `<div class="f"><label>${f.l}</label><div class="row">${ctl}${f.u ? `<span class="u">${f.u}</span>` : ''}</div>${f.h ? `<small>${f.h}</small>` : ''}</div>`;
   }).join('') + '</div></div>').join('');
   $$('#setupForms [data-k]').forEach(el => el.value = p[el.dataset.k]);
+  const refSel = $('#setupForms [data-k=trigger_ref]');
+  const showRef = () => { $('#setupForms [data-k=open_adv]').closest('.f').hidden = refSel.value !== '1'; };
+  refSel.onchange = e => {
+    const close = e.target.value === '1';
+    const f = k => $('#setupForms [data-k=' + k + ']');
+    f('trigger_adv').value = close ? 120 : 40;
+    if (close) { if (+f('crank_adv').value > 3) f('crank_adv').value = 3; f('accel_comp').value = 100; }
+    showRef();
+    toast('Typical values filled in' + (close ? ' (acceleration compensation 100%, cranking advance ≤3°)' : '') + ' — press Apply, then calibrate with the timing light');
+  };
+  showRef();
   $('#dwell').innerHTML = '<b>Volts</b><b>Dwell µs</b><span></span>' + p.dwell_mv.map((mv, i) =>
     `<input type="number" data-dmv="${i}" step="0.1" value="${(mv / 1000).toFixed(1)}"><input type="number" data-dus="${i}" step="50" value="${p.dwell_us[i]}"><span></span>`).join('');
 }
@@ -510,7 +524,7 @@ function mockApi(path, method, body) {
     const mapAx = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 80, 85, 90, 95, 100];
     const base = [8, 10, 13, 16, 20, 24, 26, 28, 29, 30, 30, 30, 30, 30, 30, 30], wot = [10, 10, 10, 10, 9, 9, 8, 8, 7, 7, 6, 6, 6, 6, 6, 6], adv = [];
     for (let i = 0; i < NR; i++) for (let j = 0; j < NM; j++) { const load = Math.max(0, mapAx[j] - 35); adv.push(Math.max(6, Math.round((base[i] - wot[i] * load / 65) * 2) / 2)); }
-    mock = { fw: 'mock', params: { lpg_mode: 0, lpg_offset: 3, map_cal_mv: [425, 4025], map_cal_kpa: [20, 100], trigger_adv: 40, trigger_edge: 0, latency_us: 0, cylinders: 4, idle_enable: 1, accel_comp: 0, crank_rpm: 350, crank_adv: 5, min_adv: -5, max_adv: 38, rev_soft: 5600, rev_hard: 6000, rev_retard: 10, adv_slew: 4, min_dwell: 1500, max_dwell: 7000, idle_target: 850, idle_map_max: 55, idle_kp: .8, idle_ki: .6, idle_trim_max: 8, map_gain_x1000: 1000, map_offset: 0, dwell_mv: [8000, 10000, 12000, 14000, 16000], dwell_us: [5500, 4800, 4000, 3500, 3200] },
+    mock = { fw: 'mock', params: { open_adv: 10, trigger_ref: 0, lpg_mode: 0, lpg_offset: 3, map_cal_mv: [425, 4025], map_cal_kpa: [20, 100], trigger_adv: 40, trigger_edge: 0, latency_us: 0, cylinders: 4, idle_enable: 1, accel_comp: 0, crank_rpm: 350, crank_adv: 5, min_adv: -5, max_adv: 38, rev_soft: 5600, rev_hard: 6000, rev_retard: 10, adv_slew: 4, min_dwell: 1500, max_dwell: 7000, idle_target: 850, idle_map_max: 55, idle_kp: .8, idle_ki: .6, idle_trim_max: 8, map_gain_x1000: 1000, map_offset: 0, dwell_mv: [8000, 10000, 12000, 14000, 16000], dwell_us: [5500, 4800, 4000, 3500, 3200] },
       tables: { rpm_axis: rpmAx, map_axis: mapAx, adv, adv_lpg: adv.map(v => v + 3) }, lpgOv: 0, dirty: false, lock: false, lockAdv: 10, sim: 0, t0: Date.now() };
   }
   return new Promise(res => setTimeout(() => {

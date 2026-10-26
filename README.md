@@ -22,6 +22,15 @@ WiFi network — no app to install, no router needed.
  MAP hose ───────┴── MPX4115-class sensor ──────┘
 ```
 
+* **Trigger reference (Setup):** two choices.
+  **OPEN edge (default)** — distributor locked at full advance, trigger ≈ 40°: most accurate.
+  **CLOSE edge** — factory distributor (weights blocked at rest, vacuum capsule off), trigger ≈ 120°
+  before the firing cylinder: the ECU predicts ~3× further ahead (use *Acceleration compensation*
+  100%, which the UI sets for you), and while cranking it falls back to the OPEN edge (≈10° factory
+  static timing) because 120° of prediction is far too coarse at cranking-speed variation.
+  Host-simulated error: ≤0.04° steady, ~0.9° over a 1000→5500 rpm/4 s ramp, ≤0.5° on a hard
+  lift-off with compensation, ≈0.3° cranking. The closing edge bounces more than the opening one:
+  verify on a scope.
 * **Points = sensor only.** They no longer carry coil current (no arcing, no
   condenser needed). The instant they *open* marks a fixed crank angle,
   `trigger angle` (≈ 40° BTDC).
@@ -122,3 +131,4 @@ Install, wiring and the timing-light calibration procedure are in
 | 1.1.0 | 2026-10-27 | MAP sensor two-point calibration in Setup (any linear 1-bar analog sensor, e.g. GM/Lada/Bosch; capture-from-live-reading buttons); `MAP_SLOPE`/`MAP_OFFSET`/`MAP_SUPPLY_MV` removed from `config.h`. Stored settings from 1.0.0 are discarded on first boot (defaults load). |
 | 1.2.0 | 2026-10-27 | LPG timing: 12 V valve-signal input (GPIO3, hysteresis + debounce), static-offset mode or separate LPG map, copy petrol → LPG (+offset), manual override, LPG badge in the UI. Settings from 1.1.0 are discarded on first boot (defaults load). |
 | 1.2.1 | 2026-10-27 | UI: LPG settings moved to their own tab; the LPG map is only shown in "Separate LPG map" mode (static-offset mode shows just the offset). |
+| 1.3.0 | 2026-10-27 | Setup: choice of trigger reference — points OPEN edge (distributor locked at full advance, ~40°) or points CLOSE edge (factory distributor, ~120°) with automatic OPEN-edge cranking reference; trigger angle range up to 160°; extended host tests. Settings from 1.2.x are discarded on first boot (defaults load). |

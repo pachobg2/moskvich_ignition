@@ -85,6 +85,17 @@ GPIO2/8/9 strapping for anything driven at boot — GPIO8 is just the LED).
 The default trigger angle (40°) is deliberately above the highest default map
 value (30°) so there is always room to retard.
 
+### Alternative: keep the factory distributor (close-edge reference)
+
+Setup → **Trigger reference → Points CLOSE edge**. Instead of locking the advance at 40°:
+
+1. Block the centrifugal weights **at rest** (no advance), disconnect the vacuum capsule, remove the condenser.
+2. Set the distributor to its factory static timing (≈10° BTDC at the points-open moment) — this is the cranking reference (*Points-open angle*, default 10°).
+3. The points *closing* edge then falls roughly 120° before the next cylinder's TDC (depends on the points gap/dwell angle). Start with the default 120° and calibrate with the timing light exactly as below — the formula is the same.
+4. Keep *Acceleration compensation* at 100% and the cranking advance ≤3°. Both are filled in when you pick this mode.
+
+Trade-off: the spark is placed from a signal ~3× further ahead, so error grows with rpm change, and lobe-to-lobe distributor wear is no longer cancelled. The closing edge also bounces; look at the signal on a scope before trusting it at high rpm.
+
 ## Calibrating the trigger angle (every install)
 
 1. Connect a timing light to cylinder 1; engine warm, idling.
