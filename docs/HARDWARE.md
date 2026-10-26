@@ -19,18 +19,18 @@ Leave the coil's (+) wiring and the ballast resistor as they are.
 
 ## Circuit blocks
 
-The complete design — schematic, PCB (through-hole only, ESP32-C3-Zero on sockets),
+The complete design — schematic, PCB (SMD, two-sided, 48 × 41.8 mm, ESP32-C3-Zero on sockets),
 BOM and mounting details for the IGBT cut-out — is in **[`hardware/`](../hardware/README.md)**.
 In short:
 
-1. **Power** — PTC fuse, series diode (reverse polarity), 27 V TVS, 470 µF, then a
-   **Traco TSR 1-2450** 5 V buck module (6.5–36 V in). Coil current does **not**
-   flow through any of this: only the ECU's ~0.2 A.
+1. **Power** — 0.5 A SMD fuse, SS34 Schottky (reverse polarity), SMBJ24A TVS, 10 µF, then an
+   **AP63205** SMD buck (3.8–32 V in, fixed 5 V / 2 A, 4.7 µH + 2 × 22 µF as per its
+   datasheet). Coil current does **not** flow through any of this: only the ECU's ~0.2 A.
 2. **Points input** — 1 kΩ pull-up from the protected 12 V gives ≈ 12 mA wetting current;
-   10 k / 22 k into a BC547 inverter (points open ⇒ GPIO4 low), 1 k + 10 nF filter.
+   10 k / 22 k into a BC847 inverter (points open ⇒ GPIO4 low), 1 k + 10 nF filter.
    **Remove the distributor condenser**: with no coil current through the points it is
    unnecessary and would slow the edge.
-3. **Coil driver** — GPIO6 → **74HCT123** one-shot (≈ 12 ms, 27 k + 1 µF) → 100 Ω →
+3. **Coil driver** — GPIO6 → **74HCT123** one-shot (≈ 15–20 ms, 22 k + 2.2 µF) → 100 Ω →
    **ISL9V3040P3** ignition IGBT. The one-shot is the **stuck-on guard** (a hung MCU can
    never leave the coil charged) and level-shifts to a 5 V gate drive. 10 k pull-downs
    keep the coil off while the MCU boots. Q1 lies flat on the case floor in a PCB cut-out
