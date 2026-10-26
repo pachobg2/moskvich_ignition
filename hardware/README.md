@@ -50,8 +50,8 @@ Ignition-switched 12 V → 0.5 A fuse → SS34 Schottky (reverse polarity) → S
 buck (3.8–32 V in, fixed 5 V, 2 A; L = 4.7 µH, 2 × 22 µF out, 100 nF boot — the datasheet's values) → 5 V. The
 points signal (J1.1) is pulled up through 1 kΩ (wetting current), divided and inverted by a BC847 into GPIO4.
 The LPG valve signal, the battery voltage and the MAP sensor each go through a divider with a 100 nF cap and
-a 3.6 V zener into ADC1 pins. The MCU's coil command (GPIO6) feeds a **74HCT123** that (a) turns the 3.3 V
-logic into a 5 V gate drive and (b) limits coil-on time in hardware (≈ 15–20 ms with the 22 kΩ / 2.2 µF
+a 3.6 V zener into ADC1 pins. The MCU's coil command (GPIO6) feeds a **CD74HCT221** monostable that (a) turns the 3.3 V
+logic into a 5 V gate drive and (b) limits coil-on time in hardware (≈ 16–23 ms with the 15 kΩ / 2.2 µF
 network; the firmware limits it to 9 ms first), so a hung MCU can never leave the coil charged. It drives the
 **ISL9V3040P3** ignition IGBT; its collector (the tab) is the coil negative (J1.4). Coil current never flows
 through the buck or the sensor grounds: it uses the 1.5 mm top-layer collector track and the GND pours / J1.3.
@@ -61,7 +61,7 @@ through the buck or the sensor grounds: it uses the 1.5 mm top-layer collector t
 * **48 × 41.8 mm**, 2 layers, 1.6 mm, three M2.5 mounting holes. Origin = top-left corner, X right, Y down (as in KiCad).
 * Rules used: tracks 0.2 mm (signal) / 0.4 mm (power) / **1.5 mm** (collector), clearance 0.2 mm (0.7 mm around the collector net), vias 0.8 / 0.4 mm, GND pours on both layers. These are within normal 2-layer fab capabilities.
 * **Top side:** module sockets, J1/J2, the IGBT pads, and the buck stage (U2, L1, C1–C4, C11, D1, D2, F1).
-* **Bottom side:** everything else (dividers, points input, the 74HCT123 and its resistors). The bottom parts sit in the 6 mm gap between the board and the case floor, so keep them ≤ 3 mm tall.
+* **Bottom side:** everything else (dividers, points input, the CD74HCT221 and its resistors). The bottom parts sit in the 6 mm gap between the board and the case floor, so keep them ≤ 3 mm tall.
 * **Terminals:** J2 (top right) = LPG signal, +5 V, MAP signal, GND. J1 (right) = points lead, +12 V, GND, coil −. The coil track and the GND pour handle the 4 A pulses; use ≥ 1 mm² wire on J1.3 / J1.4.
 * The module's USB-C faces the **top** edge (2.2 mm from it).
 
@@ -92,17 +92,17 @@ The IGBT is cooled by the **case floor**, which acts as the heat sink.
 | **AP63205WU-7** (U2) | Pinout, 4.7 µH / 10 µF / 2 × 22 µF / 100 nF and "EN to VIN" are from the Diodes datasheet (DS41326). Abs. max VIN 35 V DC / 40 V for 400 ms — hence the SMBJ24A TVS (clamps ≈ 39 V). Fit enough ceramic capacitance after derating (X7R/X5R lose capacity with DC bias). |
 | **L1** | Any shielded 4.7 µH inductor, I_sat ≥ 2 A, DCR < 100 mΩ, about 4 × 4 mm. The land pattern is generic: adjust it to your part. |
 | **F1** | An SMD fuse (0.5 A, ≥ 32 V rating) or a PTC of the same 1206 size. Ordinary 1206 PTCs are often rated only 6–15 V: do not use those. |
-| **C10 / R14** | 2.2 µF X7R + 22 kΩ ⇒ guard time ≈ 0.45·R·C, with the capacitor derated by its DC bias: 15–20 ms. If you change them keep it above the firmware's 9 ms and below ~25 ms. |
+| **C10 / R14** | 2.2 µF X7R + 15 kΩ ⇒ guard time ≈ 0.7·R·C (CD74HCT221 datasheet), with the capacitor derated by its DC bias: 16–23 ms. If you change them keep it above the firmware's 9 ms and below ~25 ms. |
 | ESP32-C3-Zero pad order | Pad numbers/GPIOs follow the Waveshare list (1 = 5V, 2 = GND, 3 = 3V3, 4–9 = IO0…IO5 down the left side, 10–18 = IO6, IO7, IO8, IO9, IO10, IO18, IO19, IO20, IO21 up the right side, USB at the top). **Read the silkscreen on your module** and measure the header row distance (15.24 mm assumed). |
 | Module antenna | I did not leave a copper-free zone under the module (SMD parts and pours sit under its body); check where the antenna is on your revision and, if needed, move parts and add a keep-out there. |
 | MAP sensor connector | J2.2 +5 V, J2.3 signal, J2.4 GND. GM-style sensors are usually A = ground, B = signal, C = 5 V — check yours. |
 
 ## Bring-up
 
-1. **Without** the module, the 74HCT123 and the IGBT: power from a bench supply (current limit 0.3 A). Check +5 V, check reverse polarity is blocked, check the TVS does not conduct at 14.4 V.
+1. **Without** the module, the CD74HCT221 and the IGBT: power from a bench supply (current limit 0.3 A). Check +5 V, check reverse polarity is blocked, check the TVS does not conduct at 14.4 V.
 2. Fit U3 and the module, flash, join `Moskvich-ECU`. LED: blue blip = stopped, yellow = cranking, green = petrol, cyan = LPG, violet = simulator / OTA.
 3. Tools → Bench simulator at 800 / 3000 / 6000 rpm with a **100 Ω resistor and LED, or a scope, instead of the coil** on J1.4. Check one pulse per trigger and on-time = the dwell shown in the Live tab.
-4. Hold the command high on purpose (firmware stopped, jumper 3.3 V → GPIO6): the 74HCT123 output must drop after ≈ 15–20 ms.
+4. Hold the command high on purpose (firmware stopped, jumper 3.3 V → GPIO6): the CD74HCT221 output must drop after ≈ 16–23 ms.
 5. Only then fit Q1, connect the coil and the distributor, and follow `docs/HARDWARE.md`.
 
 ## Not done / ideas

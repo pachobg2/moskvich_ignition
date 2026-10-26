@@ -33,7 +33,7 @@ const int PIN_LPG    = 0;   // LPG valve 12 V signal, via divider (ADC1_CH0)
 const int PIN_MAP    = 1;   // MAP sensor, via divider (ADC1_CH1)
 const int PIN_VBAT   = 3;   // 12 V sense, via divider (ADC1_CH3)
 const int PIN_POINTS = 4;   // conditioned points signal (NPN inverter: points open = pin LOW)
-const int PIN_COIL   = 6;   // to the 74HCT123 coil guard / IGBT gate driver. HIGH = coil charging.
+const int PIN_COIL   = 6;   // to the 74HCT221 coil guard / IGBT gate driver. HIGH = coil charging.
 const int PIN_LED    = 10;  // ESP32-C3-Zero on-board WS2812 RGB LED
 
 // MAP sensor: any linear 1-bar analog sensor. Slope/offset are NOT set here: use

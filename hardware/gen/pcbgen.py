@@ -151,13 +151,13 @@ smdpart("Q2", "BC847B", "SOT23", 28.0, 9.0, 0, {"1": "PT_B", "2": "GND", "3": "P
 smdpart("R4", "4.7k", "R0603", 32.0, 8.4, 90, {"1": "PT_C", "2": "+3V3"})
 smdpart("R5", "1k", "R0603", 34.0, 8.4, 90, {"1": "PT_C", "2": "PT_G"})
 smdpart("C5", "10nF", "C0603", 37.6, 8.4, 90, {"1": "GND", "2": "PT_G"})
-smdpart("U3", "SN74HCT123D", "SOIC16", 32.0, 25.5, 180,
+smdpart("U3", "CD74HCT221M96", "SOIC16", 32.0, 25.5, 180,
         {"1": "GND", "2": "CMD", "3": "CMD", "8": "GND", "9": "+5V", "10": "GND", "11": "GND", "13": "GATE_DRV", "14": "CEXT", "15": "REXT", "16": "+5V"},
-        desc="retriggerable one-shot = coil on-time guard + 5 V gate driver")
+        desc="monostable = coil on-time guard + 5 V gate driver")
 smdpart("R10", "100R", "R0603", 27.0, 26.5, 90, {"1": "CMD_G", "2": "CMD"})
 smdpart("R13", "10k", "R0603", 27.0, 29.8, 90, {"1": "CMD", "2": "GND"})
 smdpart("C9", "100nF", "C0603", 36.8, 20.5, 90, {"1": "+5V", "2": "GND"})
-smdpart("R14", "22k", "R0603", 39.6, 31.0, 90, {"1": "REXT", "2": "+5V"})
+smdpart("R14", "15k", "R0603", 39.6, 31.0, 90, {"1": "REXT", "2": "+5V"})
 smdpart("C10", "2.2uF 25V X7R", "C0805", 39.6, 27.6, 90, {"1": "CEXT", "2": "REXT"})
 smdpart("R15", "100R", "R0603", 37.2, 26.135, 0, {"1": "GATE", "2": "GATE_DRV"})
 smdpart("R16", "10k", "R0603", 33.5, 33.5, 0, {"1": "GATE", "2": "GND"})
@@ -643,7 +643,7 @@ BOM_HINT = {
     "C1210": "Capacitor 1210 X7R 10 uF 50 V", "D123": "SOD-123 diode (pin 1 = cathode)", "DSMA": "Schottky SMA (pin 1 = cathode)", "DSMB": "TVS SMB, unidirectional (pin 1 = cathode)",
     "L4040": "Shielded power inductor 4.7 uH, 4x4 mm, I_sat >= 2 A, DCR < 100 mOhm (check the land pattern of the part you buy)",
     "SOT23": "NPN BC847B (1 = B, 2 = E, 3 = C)", "SOT23_6": "AP63205WU-7 (TSOT-26): 1 FB, 2 EN, 3 VIN, 4 GND, 5 SW, 6 BST",
-    "SOIC16": "SN74HCT123D (SOIC-16 narrow)", "TERM35": "Screw terminal 3.5 mm pitch, 4 positions, 8 A", "MODULE": "Waveshare ESP32-C3-Zero on 2x 1x9 female headers (2.54 mm, 15.24 mm apart)",
+    "SOIC16": "CD74HCT221M96 (SOIC-16 narrow; same pinout as the 74HCT123). Non-retriggerable, tW = 0.7 Rx Cx", "TERM35": "Screw terminal 3.5 mm pitch, 4 positions, 8 A", "MODULE": "Waveshare ESP32-C3-Zero on 2x 1x9 female headers (2.54 mm, 15.24 mm apart)",
     "TO220": "Ignition IGBT ISL9V3040P3 (TO-220), laid flat on the case floor in the cut-out", "MH": "M2.5 screw + 6 mm standoff",
 }
 

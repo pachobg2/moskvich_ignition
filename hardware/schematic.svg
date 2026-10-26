@@ -346,7 +346,7 @@
 <text x="1454" y="580" font-size="11" text-anchor="start" fill="#555">3.6 V zeners protect the pins from wiring faults.  VBAT 12 V → 2.2 V,  LPG ≥ 7 V = on / ≤ 4 V = off,  MAP 4.8 V → 2.9 V.</text>
 <text x="1454" y="597" font-size="11" text-anchor="start" fill="#555">MAP sensor: any linear 5 V 1-bar analog type (e.g. GM-style), calibrated with the two-point tool in the web app.</text>
 <rect x="1440" y="670" width="1090" height="500" fill="none" stroke="#9aa5b1" stroke-width="1.2" stroke-dasharray="7 5" rx="3"/>
-<text x="1450" y="690" font-size="14" text-anchor="start" fill="#334" font-weight="700">COIL DRIVER   — 74HCT123 = on-time guard (≈ 15 ms) + 5 V gate drive</text>
+<text x="1450" y="690" font-size="14" text-anchor="start" fill="#334" font-weight="700">COIL DRIVER   — CD74HCT221 = on-time guard (≈ 20 ms) + 5 V gate drive</text>
 <path d="M1454,860 l9,-9 h44.0 v18 h-44.0 z" fill="#f4e6fb" stroke="#7a1fa2" stroke-width="1.3"/>
 <text x="1466" y="864.5" font-size="12" text-anchor="start" fill="#7a1fa2" font-weight="700">CMD_G</text>
 <polyline points="1536,860 1560,860" fill="none" stroke="#0a6b2c" stroke-width="1.8" stroke-linejoin="round"/>
@@ -365,7 +365,7 @@
 <line x1="1677" y1="937" x2="1683" y2="937" stroke="#1a1a1a" stroke-width="1.8" stroke-linecap="round"/>
 <rect x="1770" y="800" width="150" height="210" fill="#fffbea" stroke="#1a1a1a" stroke-width="1.8" rx="3"/>
 <text x="1845.0" y="818" font-size="14" text-anchor="middle" fill="#111" font-weight="700">U3</text>
-<text x="1845.0" y="833" font-size="11" text-anchor="middle" fill="#111" font-style="italic">SN74HCT123D (SOIC-16)</text>
+<text x="1845.0" y="833" font-size="11" text-anchor="middle" fill="#111" font-style="italic">CD74HCT221M96 (SOIC-16)</text>
 <line x1="1748" y1="840" x2="1770" y2="840" stroke="#1a1a1a" stroke-width="1.8" stroke-linecap="round"/>
 <text x="1776" y="844" font-size="11.5" text-anchor="start" fill="#111">1A</text>
 <text x="1764" y="836" font-size="10" text-anchor="end" fill="#666">1</text>
@@ -373,16 +373,16 @@
 <text x="1776" y="884" font-size="11.5" text-anchor="start" fill="#111">1B</text>
 <text x="1764" y="876" font-size="10" text-anchor="end" fill="#666">2</text>
 <line x1="1748" y1="920" x2="1770" y2="920" stroke="#1a1a1a" stroke-width="1.8" stroke-linecap="round"/>
-<text x="1776" y="924" font-size="11.5" text-anchor="start" fill="#111">/1CLR</text>
+<text x="1776" y="924" font-size="11.5" text-anchor="start" fill="#111">/1R</text>
 <text x="1764" y="916" font-size="10" text-anchor="end" fill="#666">3</text>
 <line x1="1920" y1="840" x2="1942" y2="840" stroke="#1a1a1a" stroke-width="1.8" stroke-linecap="round"/>
 <text x="1914" y="844" font-size="11.5" text-anchor="end" fill="#111">1Q</text>
 <text x="1926" y="836" font-size="10" text-anchor="start" fill="#666">13</text>
 <line x1="1920" y1="890" x2="1942" y2="890" stroke="#1a1a1a" stroke-width="1.8" stroke-linecap="round"/>
-<text x="1914" y="894" font-size="11.5" text-anchor="end" fill="#111">1Cext</text>
+<text x="1914" y="894" font-size="11.5" text-anchor="end" fill="#111">1Cx</text>
 <text x="1926" y="886" font-size="10" text-anchor="start" fill="#666">14</text>
 <line x1="1920" y1="930" x2="1942" y2="930" stroke="#1a1a1a" stroke-width="1.8" stroke-linecap="round"/>
-<text x="1914" y="934" font-size="11.5" text-anchor="end" fill="#111">1Rext/Cext</text>
+<text x="1914" y="934" font-size="11.5" text-anchor="end" fill="#111">1RxCx</text>
 <text x="1926" y="926" font-size="10" text-anchor="start" fill="#666">15</text>
 <line x1="1810" y1="778" x2="1810" y2="800" stroke="#1a1a1a" stroke-width="1.8" stroke-linecap="round"/>
 <text x="1810" y="816" font-size="11.5" text-anchor="middle" fill="#111">VCC</text>
@@ -397,7 +397,7 @@
 <text x="1845" y="1002" font-size="11.5" text-anchor="middle" fill="#111">2B</text>
 <text x="1850" y="1025" font-size="10" text-anchor="start" fill="#666">10</text>
 <line x1="1880" y1="1010" x2="1880" y2="1032" stroke="#1a1a1a" stroke-width="1.8" stroke-linecap="round"/>
-<text x="1880" y="1002" font-size="11.5" text-anchor="middle" fill="#111">/2CLR</text>
+<text x="1880" y="1002" font-size="11.5" text-anchor="middle" fill="#111">/2R</text>
 <text x="1885" y="1025" font-size="10" text-anchor="start" fill="#666">11</text>
 <polyline points="1680,860 1732,860" fill="none" stroke="#0a6b2c" stroke-width="1.8" stroke-linejoin="round"/>
 <polyline points="1732,880 1732,920" fill="none" stroke="#0a6b2c" stroke-width="1.8" stroke-linejoin="round"/>
@@ -423,7 +423,7 @@
 <line x1="1834" y1="1069" x2="1856" y2="1069" stroke="#1a1a1a" stroke-width="1.8" stroke-linecap="round"/>
 <line x1="1838" y1="1074" x2="1852" y2="1074" stroke="#1a1a1a" stroke-width="1.8" stroke-linecap="round"/>
 <line x1="1842" y1="1079" x2="1848" y2="1079" stroke="#1a1a1a" stroke-width="1.8" stroke-linecap="round"/>
-<text x="1764" y="1102" font-size="11" text-anchor="start" fill="#666">NC pins: 4, 5, 6, 7, 12.  Section 2 parked (A high, B/CLR low).</text>
+<text x="1764" y="1102" font-size="11" text-anchor="start" fill="#666">NC pins: 4, 5, 6, 7, 12.  Section 2 parked (A high, B/R low).</text>
 <g stroke="#1a1a1a" stroke-width="1.8" fill="none" stroke-linecap="round" transform="translate(2000,746) rotate(90)"><path d="M0,0 H21.0 M29.0,0 H50 M21.0,-11 V11 M29.0,-11 V11"/></g>
 <text x="2015" y="768.0" font-size="12.5" text-anchor="start" fill="#111" font-weight="700">C9</text>
 <text x="2015" y="783.0" font-size="11.5" text-anchor="start" fill="#111">100nF (U3 bypass)</text>
@@ -445,7 +445,7 @@
 <polyline points="1982,930 1982,960" fill="none" stroke="#0a6b2c" stroke-width="1.8" stroke-linejoin="round"/>
 <g stroke="#1a1a1a" stroke-width="1.8" fill="none" stroke-linecap="round" transform="translate(1982,960) rotate(90)"><path d="M0,0 H10.0 M46.0,0 H56"/><rect x="10.0" y="-6.5" width="36" height="13"/></g>
 <text x="1997" y="985.0" font-size="12.5" text-anchor="start" fill="#111" font-weight="700">R14</text>
-<text x="1997" y="1000.0" font-size="11.5" text-anchor="start" fill="#111">22k</text>
+<text x="1997" y="1000.0" font-size="11.5" text-anchor="start" fill="#111">15k</text>
 <polyline points="1982,1016 1982,1028" fill="none" stroke="#0a6b2c" stroke-width="1.8" stroke-linejoin="round"/>
 <path d="M1982,1028 l9,-9 h29.200000000000003 v18 h-29.200000000000003 z" fill="#f4e6fb" stroke="#7a1fa2" stroke-width="1.3"/>
 <text x="1994" y="1032.5" font-size="12" text-anchor="start" fill="#7a1fa2" font-weight="700">+5V</text>
@@ -478,7 +478,7 @@
 <text x="2220" y="1086" font-size="11.5" text-anchor="start" fill="#333">(pad + shoulder washer), inside the PCB cut-out;</text>
 <text x="2220" y="1102" font-size="11.5" text-anchor="start" fill="#333">leads bent up through the pads beside the cut-out.</text>
 <text x="2220" y="1118" font-size="11.5" text-anchor="start" fill="#a00" font-weight="700">Tab = collector = coil −: up to ~400 V!</text>
-<text x="1454" y="1140" font-size="11" text-anchor="start" fill="#555">Q (13) is high only while CMD is high AND for at most 0.45·22k·C(2.2 µF, derated) ≈ 15–20 ms, then drops until CMD toggles: a hung MCU cannot cook the coil.</text>
+<text x="1454" y="1140" font-size="11" text-anchor="start" fill="#555">Q (13) is high only while CMD is high AND for at most 0.7·15k·C(2.2 µF, derated) ≈ 16–23 ms, then drops until CMD toggles: a hung MCU cannot cook the coil.</text>
 <text x="1454" y="1157" font-size="11" text-anchor="start" fill="#555">R13 / R16 (10k pull-downs) keep the coil off while the MCU resets or the 5 V rail is missing.</text>
 <rect x="2210" y="80" width="330" height="560" fill="none" stroke="#9aa5b1" stroke-width="1.2" stroke-dasharray="7 5" rx="3"/>
 <text x="2220" y="100" font-size="14" text-anchor="start" fill="#334" font-weight="700">MCU MODULE</text>

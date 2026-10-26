@@ -30,7 +30,7 @@ In short:
    10 k / 22 k into a BC847 inverter (points open ⇒ GPIO4 low), 1 k + 10 nF filter.
    **Remove the distributor condenser**: with no coil current through the points it is
    unnecessary and would slow the edge.
-3. **Coil driver** — GPIO6 → **74HCT123** one-shot (≈ 15–20 ms, 22 k + 2.2 µF) → 100 Ω →
+3. **Coil driver** — GPIO6 → **CD74HCT221** one-shot (≈ 16–23 ms, 15 k + 2.2 µF) → 100 Ω →
    **ISL9V3040P3** ignition IGBT. The one-shot is the **stuck-on guard** (a hung MCU can
    never leave the coil charged) and level-shifts to a 5 V gate drive. 10 k pull-downs
    keep the coil off while the MCU boots. Q1 lies flat on the case floor in a PCB cut-out

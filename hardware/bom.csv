@@ -18,11 +18,11 @@ Qty,Refs,Value,Footprint,Description
 1,R1,1k 0.25W,R_1206,"Resistor 1206, 0.25 W"
 2,R10 R15,100R,R_0603,Resistor 0603 1 % (thick film)
 4,R11 R13 R16 R2,10k,R_0603,Resistor 0603 1 % (thick film)
-1,R12,15k,R_0603,Resistor 0603 1 % (thick film)
+2,R12 R14,15k,R_0603,Resistor 0603 1 % (thick film)
 1,R4,4.7k,R_0603,Resistor 0603 1 % (thick film)
 1,R5,1k,R_0603,Resistor 0603 1 % (thick film)
 2,R6 R8,100k,R_0603,Resistor 0603 1 % (thick film)
-4,R14 R3 R7 R9,22k,R_0603,Resistor 0603 1 % (thick film)
+3,R3 R7 R9,22k,R_0603,Resistor 0603 1 % (thick film)
 1,U1,ESP32-C3-Zero,ESP32-C3-Zero_2x9_Socket,"Waveshare ESP32-C3-Zero on 2x 1x9 female headers (2.54 mm, 15.24 mm apart)"
 1,U2,AP63205WU-7,SOT-23-6,"AP63205WU-7 (TSOT-26): 1 FB, 2 EN, 3 VIN, 4 GND, 5 SW, 6 BST"
-1,U3,SN74HCT123D,SOIC-16_3.9x9.9mm_P1.27mm,SN74HCT123D (SOIC-16 narrow)
+1,U3,CD74HCT221M96,SOIC-16_3.9x9.9mm_P1.27mm,"CD74HCT221M96 (SOIC-16 narrow; same pinout as the 74HCT123). Non-retriggerable, tW = 0.7 Rx Cx"

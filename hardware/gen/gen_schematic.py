@@ -248,7 +248,7 @@ text(cx + 14, 597, "MAP sensor: any linear 5 V 1-bar analog type (e.g. GM-style)
 
 # =================================================================== coil driver
 dy = 670
-block(cx, dy, 1090, 500, "COIL DRIVER   — 74HCT123 = on-time guard (≈ 15 ms) + 5 V gate drive")
+block(cx, dy, 1090, 500, "COIL DRIVER   — CD74HCT221 = on-time guard (≈ 20 ms) + 5 V gate drive")
 netlabel(cx + 14, dy + 190, "CMD_G")
 wire(cx + 96, dy + 190, cx + 120, dy + 190)
 sym("R", cx + 120, dy + 190, "h", "R10", "100R", 64)
@@ -257,8 +257,8 @@ wire(cx + 184, dy + 190, nc_, dy + 190); dot(nc_, dy + 190)
 text(nc_ - 6, dy + 172, "CMD", 11.5, "end", c=NETC, bold=True)
 sym("R", nc_, dy + 190, "v", "R13", "10k", 60); gnd(nc_, dy + 250)
 ix, iy = cx + 330, dy + 130
-P = ic(ix, iy, 150, 210, "U3", "SN74HCT123D (SOIC-16)", [(1, "1A", 40), (2, "1B", 80), (3, "/1CLR", 120)],
-       [(13, "1Q", 40), (14, "1Cext", 90), (15, "1Rext/Cext", 130)], top=[(16, "VCC", 40), (9, "2A", 110)], bottom=[(8, "GND", 40), (10, "2B", 75), (11, "/2CLR", 110)])
+P = ic(ix, iy, 150, 210, "U3", "CD74HCT221M96 (SOIC-16)", [(1, "1A", 40), (2, "1B", 80), (3, "/1R", 120)],
+       [(13, "1Q", 40), (14, "1Cx", 90), (15, "1RxCx", 130)], top=[(16, "VCC", 40), (9, "2A", 110)], bottom=[(8, "GND", 40), (10, "2B", 75), (11, "/2R", 110)])
 bus = cx + 292
 wire(nc_, dy + 190, bus, dy + 190); wire(bus, P[2][1], bus, P[3][1]); dot(bus, dy + 190)
 wire(bus, P[2][1], P[2][0], P[2][1]); wire(bus, P[3][1], P[3][0], P[3][1])
@@ -268,7 +268,7 @@ wire(P[16][0], P[16][1], P[16][0], vtop); wire(P[9][0], P[9][1], P[9][0], vtop);
 vb = iy + 210 + 52
 for k in (8, 10, 11): wire(P[k][0], P[k][1], P[k][0], vb)
 wire(P[8][0], vb, P[11][0], vb); gnd(P[10][0], vb)
-text(ix - 6, vb + 40, "NC pins: 4, 5, 6, 7, 12.  Section 2 parked (A high, B/CLR low).", 11, c="#666")
+text(ix - 6, vb + 40, "NC pins: 4, 5, 6, 7, 12.  Section 2 parked (A high, B/R low).", 11, c="#666")
 c9x = ix + 230
 sym("C", c9x, vtop - 2, "v", "C9", "100nF (U3 bypass)", 50); vcc(c9x, vtop - 2, "+5V"); gnd(c9x, vtop + 48)
 rx = P[15][0]
@@ -278,7 +278,7 @@ wire(P[14][0], P[14][1], rx + 40, P[14][1])
 sym("C", rx + 40, P[14][1], "v", "C10", "2.2µF X7R", 40)
 text(rx + 52, P[14][1] - 10, "CEXT", 11.5, c=NETC, bold=True)
 wire(rx + 40, P[15][1], rx + 40, P[15][1] + 30)
-sym("R", rx + 40, P[15][1] + 30, "v", "R14", "22k", 56); wire(rx + 40, P[15][1] + 86, rx + 40, P[15][1] + 98); netlabel(rx + 40, P[15][1] + 98, "+5V")
+sym("R", rx + 40, P[15][1] + 30, "v", "R14", "15k", 56); wire(rx + 40, P[15][1] + 86, rx + 40, P[15][1] + 98); netlabel(rx + 40, P[15][1] + 98, "+5V")
 gy = P[13][1]
 wire(P[13][0], gy, rx + 150, gy)
 sym("R", rx + 150, gy, "h", "R15", "100R", 64)
@@ -295,7 +295,7 @@ text(nx_, dy + 400, "Q1: TO-220 lies flat on the case floor, tab insulated", 11.
 text(nx_, dy + 416, "(pad + shoulder washer), inside the PCB cut-out;", 11.5, c="#333")
 text(nx_, dy + 432, "leads bent up through the pads beside the cut-out.", 11.5, c="#333")
 text(nx_, dy + 448, "Tab = collector = coil −: up to ~400 V!", 11.5, c="#a00", bold=True)
-text(cx + 14, dy + 470, "Q (13) is high only while CMD is high AND for at most 0.45·22k·C(2.2 µF, derated) ≈ 15–20 ms, then drops until CMD toggles: a hung MCU cannot cook the coil.", 11, c="#555")
+text(cx + 14, dy + 470, "Q (13) is high only while CMD is high AND for at most 0.7·15k·C(2.2 µF, derated) ≈ 16–23 ms, then drops until CMD toggles: a hung MCU cannot cook the coil.", 11, c="#555")
 text(cx + 14, dy + 487, "R13 / R16 (10k pull-downs) keep the coil off while the MCU resets or the 5 V rail is missing.", 11, c="#555")
 
 # =================================================================== MCU
