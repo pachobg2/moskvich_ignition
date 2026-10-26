@@ -68,6 +68,7 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
 <body>
 <header>
   <h1><span class="dot" id="dot"></span>Moskvich ECU <span style="color:var(--mut);font-weight:400" id="fw"></span></h1>
+  <span class="badge s4" id="lpgBadge" hidden>LPG</span>
   <span class="badge" id="state">—</span>
   <button id="saveBtn" class="pri" disabled>Save</button>
 </header>
@@ -91,6 +92,8 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
 <section class="tab" id="t-map">
   <div class="card">
     <h2>Ignition timing (° BTDC) — rows: rpm, columns: MAP kPa</h2>
+    <div class="tools"><button id="selMain" class="pri">Petrol map</button><button id="selLpg">LPG map</button><button id="btnCopy">Copy petrol → LPG…</button></div>
+    <div class="warn" id="lpgNote" hidden>LPG mode is set to <b>static offset</b> (Setup → LPG), so this LPG map is not used. Switch the mode to “Separate LPG map” to use it.</div>
     <div class="tools">
       <button data-d="-1">−1</button><button data-d="-0.5">−0.5</button><button data-d="0.5">+0.5</button><button data-d="1">+1</button>
       <input type="number" id="setv" step="0.5" placeholder="°"><button id="btnSet">Set</button>
@@ -110,6 +113,12 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
   <div class="card"><h2>Dwell vs battery voltage</h2>
     <div class="dw" id="dwell"></div>
     <small style="color:var(--mut)">How long the coil charges before each spark. Measure your coil: current should reach ~3.5–4 A (scope on a shunt) without the IGBT getting hot. Voltage is interpolated between rows.</small></div>
+  <div class="card"><h2>LPG input</h2>
+    <div class="kv"><span>Valve signal</span><span id="lpgSig">–</span><span>Active map</span><span id="lpgAct">–</span></div>
+    <div class="f" style="margin-top:10px"><label>Override</label>
+      <select id="lpgOv"><option value="0">Auto (follow the valve signal)</option><option value="1">Force petrol map</option><option value="2">Force LPG map</option></select>
+      <small>Override is not saved; it resets to Auto on restart. Useful for testing without the valve connected.</small></div>
+  </div>
   <div class="card"><h2>MAP sensor</h2>
     <div class="f"><label>Reading</label><div class="row"><input type="text" id="mapNow" readonly><span class="u">kPa</span></div>
       <small>Sensor output now: <b id="mapMv">–</b> mV</small></div>
@@ -182,8 +191,8 @@ function axisFind(ax, x) { // mirrors ign_axis_find in ignition_core.h
   const span = ax[i + 1] - ax[i];
   return [i, span > 0 ? (x - ax[i]) / span : 0];
 }
-function lookup(t, rpm, map) {
-  const [r, fr] = axisFind(t.rpm_axis, rpm), [c, fc] = axisFind(t.map_axis, map), a = t.adv;
+function lookup(t, rpm, map, a = t.adv) {
+  const [r, fr] = axisFind(t.rpm_axis, rpm), [c, fc] = axisFind(t.map_axis, map);
   const g = (i, j) => a[i * NM + j];
   const top = g(r, c) * (1 - fc) + g(r, c + 1) * fc, bot = g(r + 1, c) * (1 - fc) + g(r + 1, c + 1) * fc;
   return top * (1 - fr) + bot * fr;
@@ -212,6 +221,8 @@ function showLive(l) {
   const sb = $('#saveBtn');
   sb.disabled = !l.dirty || !l.can_save;
   sb.textContent = l.dirty ? (l.can_save ? 'Save' : 'Unsaved') : 'Saved';
+  $('#lpgBadge').hidden = !l.lpg; $('#lpgSig').textContent = (l.lpg_in ? 'ON' : 'off') + ' (' + (l.lpg_mv / 1000).toFixed(1) + ' V)'; $('#lpgAct').textContent = l.lpg ? 'LPG' : 'Petrol';
+  if (document.activeElement !== $('#lpgOv')) $('#lpgOv').value = l.lpg_ov;
   $('#mapNow').value = fmt(l.map); $('#mapMv').textContent = l.map_mv;
   $('#btnLock').textContent = l.lock ? 'Unlock' : 'Lock';
   $('#btnLock').className = l.lock ? 'pri' : '';
@@ -255,6 +266,8 @@ async function loadCfg() {
 }
 
 /* ------------------------------------------------------------ MAP editor */
+let mapSel = 'main';
+const curAdv = () => mapSel === 'lpg' ? cfg.tables.adv_lpg : cfg.tables.adv;
 let sel = null, anchor = null, rangeMode = false, axesMode = false, undo = [], pending = new Set(), sendT = null, tds = [];
 const hasSel = () => sel && sel.r0 >= 0;
 function buildMap() {
@@ -283,7 +296,9 @@ function cellColor(v) { // blue (low) -> green -> amber -> red (high)
 }
 function paintMap() {
   if (!cfg || !$('#t-map').classList.contains('act')) return;
-  const a = cfg.tables.adv;
+  const a = curAdv();
+  $('#selMain').className = mapSel === 'main' ? 'pri' : ''; $('#selLpg').className = mapSel === 'lpg' ? 'pri' : '';
+  $('#btnCopy').hidden = mapSel !== 'lpg'; $('#lpgNote').hidden = !(mapSel === 'lpg' && cfg.params.lpg_mode === 0);
   tds.forEach((td, k) => {
     const v = a[k];
     td.textContent = v.toFixed(1);
@@ -310,13 +325,22 @@ $('#map').addEventListener('mousedown', e => { const td = e.target.closest('td')
 $('#map').addEventListener('mouseover', e => { if (!(e.buttons & 1)) return; const td = e.target.closest('td'); if (td && anchor) setSel(+td.dataset.r, +td.dataset.c, true); });
 $('#map').addEventListener('touchend', e => { const td = e.target.closest('td'); if (!td || e.touches.length) return; /* tap handled by click */ });
 $('#map').addEventListener('click', e => { if (e.detail === 0 || e.pointerType === 'touch' || e.pointerType === 'pen') { const td = e.target.closest('td'); if (td) setSel(+td.dataset.r, +td.dataset.c, rangeMode); } });
+function selectMap(m) { flushCells(); mapSel = m; undo = []; sel = null; paintMap(); }
+$('#selMain').onclick = () => selectMap('main');
+$('#selLpg').onclick = () => selectMap('lpg');
+$('#btnCopy').onclick = async () => {
+  const o = prompt('Overwrite the LPG map with the petrol map plus this offset (°):', String(cfg.params.lpg_offset || 0));
+  if (o === null) return;
+  try { await api('/api/copymap', 'POST', { offset: parseFloat(o) || 0 }); await loadCfg(); toast('Copied petrol → LPG'); } catch (e) { toast(e.message, 1); }
+};
+$('#lpgOv').onchange = async e => { try { await api('/api/lpg', 'POST', { override: +e.target.value }); } catch (err) { toast(err.message, 1); } };
 $('#btnRange').onclick = () => { rangeMode = !rangeMode; $('#btnRange').textContent = 'Range: ' + (rangeMode ? 'ON' : 'off'); $('#btnRange').className = rangeMode ? 'pri' : ''; };
 $('#btnAxes').onclick = () => { axesMode = !axesMode; $('#btnAxes').className = axesMode ? 'pri' : ''; buildMap(); paintMap(); };
 
-function pushUndo() { undo.push(cfg.tables.adv.slice()); if (undo.length > 30) undo.shift(); }
+function pushUndo() { undo.push(curAdv().slice()); if (undo.length > 30) undo.shift(); }
 function forSel(fn) {
   if (!hasSel()) return toast('Select a cell first', 1);
-  const a = cfg.tables.adv, lo = cfg.params.min_adv, hi = cfg.params.trigger_adv;
+  const a = curAdv(), lo = cfg.params.min_adv, hi = cfg.params.trigger_adv;
   pushUndo();
   const src = a.slice();
   for (let r = sel.r0; r <= sel.r1; r++) for (let c = sel.c0; c <= sel.c1; c++) {
@@ -334,12 +358,12 @@ $('#btnSmooth').onclick = () => forSel((s, r, c, v) => {
 });
 $('#btnUndo').onclick = () => {
   const prev = undo.pop(); if (!prev) return toast('Nothing to undo');
-  const a = cfg.tables.adv; prev.forEach((v, k) => { if (v !== a[k]) { a[k] = v; pending.add(k); } });
+  const a = curAdv(); prev.forEach((v, k) => { if (v !== a[k]) { a[k] = v; pending.add(k); } });
   paintMap(); queueSend();
 };
 function queueSend() { clearTimeout(sendT); sendT = setTimeout(flushCells, 180); }
 async function flushCells() {
-  const cells = [...pending].map(k => [k >> 4, k & 15, cfg.tables.adv[k]]); pending.clear();
+  const cells = [...pending].map(k => [k >> 4, k & 15, curAdv()[k], mapSel === 'lpg' ? 1 : 0]); pending.clear();
   if (!cells.length) return;
   try { await api('/api/cells', 'POST', cells); } catch (e) { toast('Send failed: ' + e.message, 1); }
 }
@@ -369,6 +393,10 @@ const SETUP = [
     { k: 'idle_kp', l: 'Gain (P)', u: '°/100rpm', min: 0, max: 10, step: 0.1 },
     { k: 'idle_ki', l: 'Gain (I)', u: '°/100rpm/s', min: 0, max: 10, step: 0.1 },
     { k: 'idle_trim_max', l: 'Max trim', u: '± °', min: 0, max: 15, step: 0.5 },
+  ] },
+  { title: 'LPG timing', f: [
+    { k: 'lpg_mode', l: 'LPG mode', t: 'sel', o: [[0, 'Static offset: petrol map + degrees'], [1, 'Separate LPG map (Map tab)']], h: 'LPG burns slower, so it usually wants more advance than petrol. The map switches when the valve signal is present.' },
+    { k: 'lpg_offset', l: 'Static offset', u: '° (+ = more advance)', min: -10, max: 15, step: 0.5, h: 'Added to every cell of the petrol map while LPG is active (still limited by Max advance and the trigger angle). Changes are slewed in, not stepped.' },
   ] },
   { title: 'Limits & rev limiter', f: [
     { k: 'min_adv', l: 'Minimum advance', u: '° BTDC', min: -20, max: 20, step: 0.5, h: 'Negative = after TDC.' },
@@ -442,15 +470,17 @@ function mockApi(path, method, body) {
     const mapAx = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 80, 85, 90, 95, 100];
     const base = [8, 10, 13, 16, 20, 24, 26, 28, 29, 30, 30, 30, 30, 30, 30, 30], wot = [10, 10, 10, 10, 9, 9, 8, 8, 7, 7, 6, 6, 6, 6, 6, 6], adv = [];
     for (let i = 0; i < NR; i++) for (let j = 0; j < NM; j++) { const load = Math.max(0, mapAx[j] - 35); adv.push(Math.max(6, Math.round((base[i] - wot[i] * load / 65) * 2) / 2)); }
-    mock = { fw: 'mock', params: { map_cal_mv: [425, 4025], map_cal_kpa: [20, 100], trigger_adv: 40, trigger_edge: 0, latency_us: 0, cylinders: 4, idle_enable: 1, accel_comp: 0, crank_rpm: 350, crank_adv: 5, min_adv: -5, max_adv: 38, rev_soft: 5600, rev_hard: 6000, rev_retard: 10, adv_slew: 4, min_dwell: 1500, max_dwell: 7000, idle_target: 850, idle_map_max: 55, idle_kp: .8, idle_ki: .6, idle_trim_max: 8, map_gain_x1000: 1000, map_offset: 0, dwell_mv: [8000, 10000, 12000, 14000, 16000], dwell_us: [5500, 4800, 4000, 3500, 3200] },
-      tables: { rpm_axis: rpmAx, map_axis: mapAx, adv }, dirty: false, lock: false, lockAdv: 10, sim: 0, t0: Date.now() };
+    mock = { fw: 'mock', params: { lpg_mode: 0, lpg_offset: 3, map_cal_mv: [425, 4025], map_cal_kpa: [20, 100], trigger_adv: 40, trigger_edge: 0, latency_us: 0, cylinders: 4, idle_enable: 1, accel_comp: 0, crank_rpm: 350, crank_adv: 5, min_adv: -5, max_adv: 38, rev_soft: 5600, rev_hard: 6000, rev_retard: 10, adv_slew: 4, min_dwell: 1500, max_dwell: 7000, idle_target: 850, idle_map_max: 55, idle_kp: .8, idle_ki: .6, idle_trim_max: 8, map_gain_x1000: 1000, map_offset: 0, dwell_mv: [8000, 10000, 12000, 14000, 16000], dwell_us: [5500, 4800, 4000, 3500, 3200] },
+      tables: { rpm_axis: rpmAx, map_axis: mapAx, adv, adv_lpg: adv.map(v => v + 3) }, lpgOv: 0, dirty: false, lock: false, lockAdv: 10, sim: 0, t0: Date.now() };
   }
   return new Promise(res => setTimeout(() => {
     if (path === '/api/config' && method === 'GET') return res(JSON.parse(JSON.stringify({ fw: mock.fw, params: mock.params, tables: mock.tables })));
     if (path === '/api/config') { if (body.params) Object.assign(mock.params, body.params); if (body.tables) Object.assign(mock.tables, body.tables); mock.dirty = true; return res({ ok: true }); }
-    if (path === '/api/cells') { body.forEach(([r, c, v]) => mock.tables.adv[r * NM + c] = v); mock.dirty = true; return res({ ok: true }); }
+    if (path === '/api/cells') { body.forEach(([r, c, v, m]) => (m ? mock.tables.adv_lpg : mock.tables.adv)[r * NM + c] = v); mock.dirty = true; return res({ ok: true }); }
     if (path === '/api/save') { mock.dirty = false; return res({ ok: true }); }
     if (path === '/api/lock') { mock.lock = body.en; mock.lockAdv = body.adv; return res({ ok: true }); }
+    if (path === '/api/lpg') { mock.lpgOv = body.override; return res({ ok: true }); }
+    if (path === '/api/copymap') { mock.tables.adv_lpg = mock.tables.adv.map(v => v + body.offset); return res({ ok: true }); }
     if (path === '/api/sim') { mock.sim = body.rpm; return res({ ok: true }); }
     if (path === '/api/baro' || path === '/api/defaults') return res({ ok: true });
     if (path === '/api/live') {
@@ -458,8 +488,8 @@ function mockApi(path, method, body) {
       let rpm = ph < 6 ? 880 + 25 * Math.sin(t * 3) : ph < 14 ? 880 + (ph - 6) / 8 * 3800 : ph < 22 ? 4680 + 300 * Math.sin(t) : ph < 30 ? 4680 - (ph - 22) / 8 * 3800 : 880;
       if (mock.sim) rpm = mock.sim;
       const map = ph < 6 ? 38 + 2 * Math.sin(t * 5) : ph < 14 ? 38 + (ph - 6) / 8 * 52 : ph < 22 ? 90 : ph < 30 ? 90 - (ph - 22) / 8 * 52 : 38;
-      const adv = mock.lock ? mock.lockAdv : lookup(mock.tables, rpm, map);
-      return res({ rpm, map, vbat: 13.9 + .1 * Math.sin(t), adv, trim: ph < 6 ? 0.4 * Math.sin(t) : 0, dwell: 3700, state: mock.sim ? 5 : mock.lock ? 4 : 2, coil: 0, dirty: mock.dirty, can_save: false, lock: mock.lock, lock_adv: mock.lockAdv, map_mv: 1800, sparks: Math.floor(t * 30),
+      const lpgOn = mock.lpgOv === 2, adv = mock.lock ? mock.lockAdv : lookup(mock.tables, rpm, map, lpgOn ? (mock.params.lpg_mode ? mock.tables.adv_lpg : mock.tables.adv) : mock.tables.adv) + (lpgOn && !mock.params.lpg_mode ? mock.params.lpg_offset : 0);
+      return res({ rpm, map, vbat: 13.9 + .1 * Math.sin(t), adv, trim: ph < 6 ? 0.4 * Math.sin(t) : 0, dwell: 3700, state: mock.sim ? 5 : mock.lock ? 4 : 2, coil: 0, dirty: mock.dirty, can_save: false, lock: mock.lock, lock_adv: mock.lockAdv, map_mv: 1800, sparks: Math.floor(t * 30), lpg: lpgOn, lpg_in: 0, lpg_ov: mock.lpgOv, lpg_mv: 0,
         diag: { open: Math.floor(t * 30), bounce: 0, late: 1, cut: 0, dwell_limited: 0, failsafe: 0, heap: 150000, up: Math.floor(t) } });
     }
     res({});

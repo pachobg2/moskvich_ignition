@@ -80,18 +80,24 @@ struct IgnParams {
   // MAP sensor two-point calibration (sensor output mV -> kPa x10), any linear 1-bar sensor
   uint16_t map_cal_mv[2];
   int16_t  map_cal_kpa_x10[2];
+  // LPG: 0 = main map + static offset, 1 = separate LPG map
+  uint8_t  lpg_mode;
+  uint8_t  _pad1;
+  int16_t  lpg_offset_x10;
 };
 
 struct IgnTables {
   uint16_t rpm_axis[IGN_NRPM];
   uint16_t map_axis[IGN_NMAP];            // kPa
-  int16_t  adv_x10[IGN_NRPM][IGN_NMAP];   // [rpm row][map col]
+  int16_t  adv_x10[IGN_NRPM][IGN_NMAP];   // [rpm row][map col]  (petrol)
+  int16_t  adv_lpg_x10[IGN_NRPM][IGN_NMAP]; // LPG map (used when lpg_mode = 1)
 };
 
 struct IgnInputs {                // sampled by the caller at the moment of the open edge
   int32_t map_kpa;
   int32_t vbat_mv;
   int32_t idle_trim_x10;
+  uint8_t lpg;                    // LPG active (valve signal / override)
   uint8_t lock_en;                // timing-light mode: fixed advance
   int16_t lock_adv_x10;
 };
@@ -140,12 +146,12 @@ IGN_ATTR static inline void ign_axis_find(const uint16_t* ax, int n, int32_t x, 
   *frac = span > 0 ? ign_clamp(((x - (int32_t)ax[i]) * 256) / span, 0, 256) : 0;
 }
 
-IGN_ATTR static inline int32_t ign_table_lookup(const IgnTables* t, int32_t rpm, int32_t map_kpa) {
+IGN_ATTR static inline int32_t ign_table_lookup(const IgnTables* t, const int16_t (*a)[IGN_NMAP], int32_t rpm, int32_t map_kpa) {
   int r, c; int32_t fr, fc;
   ign_axis_find(t->rpm_axis, IGN_NRPM, rpm, &r, &fr);
   ign_axis_find(t->map_axis, IGN_NMAP, map_kpa, &c, &fc);
-  int32_t v00 = t->adv_x10[r][c],     v01 = t->adv_x10[r][c + 1];
-  int32_t v10 = t->adv_x10[r + 1][c], v11 = t->adv_x10[r + 1][c + 1];
+  int32_t v00 = a[r][c],     v01 = a[r][c + 1];
+  int32_t v10 = a[r + 1][c], v11 = a[r + 1][c + 1];
   int32_t top = v00 * (256 - fc) + v01 * fc;
   int32_t bot = v10 * (256 - fc) + v11 * fc;
   int32_t v = top * (256 - fr) + bot * fr;               // x65536
@@ -182,7 +188,12 @@ IGN_ATTR static inline int32_t ign_target_advance(const IgnParams* p, const IgnT
   } else if (cranking) {
     adv = p->crank_adv_x10;
   } else {
-    adv = ign_table_lookup(t, (int32_t)rpm, in->map_kpa) + in->idle_trim_x10;
+    if (in->lpg)
+      adv = p->lpg_mode ? ign_table_lookup(t, t->adv_lpg_x10, (int32_t)rpm, in->map_kpa)
+                        : ign_table_lookup(t, t->adv_x10, (int32_t)rpm, in->map_kpa) + p->lpg_offset_x10;
+    else
+      adv = ign_table_lookup(t, t->adv_x10, (int32_t)rpm, in->map_kpa);
+    adv += in->idle_trim_x10;
     if (rpm > p->rev_soft_rpm && p->rev_hard_rpm > p->rev_soft_rpm) {
       int32_t span = (int32_t)p->rev_hard_rpm - (int32_t)p->rev_soft_rpm;
       int32_t over = ign_clamp((int32_t)rpm - (int32_t)p->rev_soft_rpm, 0, span);
@@ -324,6 +335,9 @@ static inline void ign_default_params(IgnParams* p) {
   p->map_offset_x10 = 0;
   p->map_cal_mv[0] = 425;   p->map_cal_kpa_x10[0] = 200;    // MPX4115 @ 5 V: 20 kPa
   p->map_cal_mv[1] = 4025;  p->map_cal_kpa_x10[1] = 1000;   //                100 kPa
+  p->lpg_mode = 0;
+  p->_pad1 = 0;
+  p->lpg_offset_x10 = 30;
 }
 
 // Conservative starting map for a stock-ish carburetted 4-cylinder. NOT a
@@ -344,5 +358,6 @@ static inline void ign_default_tables(IgnTables* t) {
       int v10 = base[i] * 10 - (wot[i] * 10 * load) / 65;
       if (v10 < 60) v10 = 60;
       t->adv_x10[i][j] = (int16_t)v10;
+      t->adv_lpg_x10[i][j] = (int16_t)(v10 + 30 > 380 ? 380 : v10 + 30);
     }
 }

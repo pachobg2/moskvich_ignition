@@ -10,6 +10,8 @@ WebServer server(80);
 DNSServer dns;
 
 extern volatile uint32_t g_map_raw_mv;       // defined in the .ino
+extern volatile uint8_t g_lpg_override, g_lpg_in;
+extern volatile int32_t g_lpg_mv;
 extern volatile uint32_t g_map_sensor_mv;    // filtered sensor-output mV (before the divider)
 extern float g_baro_hint_kpa;
 static bool g_otaOpen = false;
@@ -42,6 +44,8 @@ static void paramsJson(JsonObject j, bool rd, IgnParams& p) {
   P_DEG("idle_trim_max", idle_trim_max_x10);
   P_INT("map_gain_x1000", map_gain_x1000);
   P_DEG("map_offset", map_offset_x10);
+  P_INT("lpg_mode", lpg_mode);
+  P_DEG("lpg_offset", lpg_offset_x10);
   if (rd) {
     JsonArrayConst cm = j["map_cal_mv"], ck = j["map_cal_kpa"];
     if (cm.size() == 2 && ck.size() == 2)
@@ -64,17 +68,20 @@ static void paramsJson(JsonObject j, bool rd, IgnParams& p) {
 
 static void tablesJson(JsonObject j, bool rd, IgnTables& t) {
   if (rd) {
-    JsonArrayConst ra = j["rpm_axis"], ma = j["map_axis"], adv = j["adv"];
+    JsonArrayConst ra = j["rpm_axis"], ma = j["map_axis"], adv = j["adv"], advl = j["adv_lpg"];
     if (ra.size() == IGN_NRPM) for (int i = 0; i < IGN_NRPM; i++) t.rpm_axis[i] = ra[i].as<int>();
     if (ma.size() == IGN_NMAP) for (int i = 0; i < IGN_NMAP; i++) t.map_axis[i] = ma[i].as<int>();
     if (adv.size() == IGN_NRPM * IGN_NMAP)
       for (int i = 0; i < IGN_NRPM; i++) for (int k = 0; k < IGN_NMAP; k++)
         t.adv_x10[i][k] = (int16_t)lroundf(adv[i * IGN_NMAP + k].as<float>() * 10.0f);
+    if (advl.size() == IGN_NRPM * IGN_NMAP)
+      for (int i = 0; i < IGN_NRPM; i++) for (int k = 0; k < IGN_NMAP; k++)
+        t.adv_lpg_x10[i][k] = (int16_t)lroundf(advl[i * IGN_NMAP + k].as<float>() * 10.0f);
   } else {
-    JsonArray ra = j["rpm_axis"].to<JsonArray>(), ma = j["map_axis"].to<JsonArray>(), adv = j["adv"].to<JsonArray>();
+    JsonArray ra = j["rpm_axis"].to<JsonArray>(), ma = j["map_axis"].to<JsonArray>(), adv = j["adv"].to<JsonArray>(), advl = j["adv_lpg"].to<JsonArray>();
     for (int i = 0; i < IGN_NRPM; i++) ra.add(t.rpm_axis[i]);
     for (int i = 0; i < IGN_NMAP; i++) ma.add(t.map_axis[i]);
-    for (int i = 0; i < IGN_NRPM; i++) for (int k = 0; k < IGN_NMAP; k++) adv.add(t.adv_x10[i][k] / 10.0f);
+    for (int i = 0; i < IGN_NRPM; i++) for (int k = 0; k < IGN_NMAP; k++) { adv.add(t.adv_x10[i][k] / 10.0f); advl.add(t.adv_lpg_x10[i][k] / 10.0f); }
   }
 }
 
@@ -115,6 +122,7 @@ static void hLive() {
   d["lock_adv"] = g_lock_adv_x10 / 10.0f;
   d["map_mv"] = g_map_sensor_mv;
   d["sparks"] = g_spark_count;
+  d["lpg"] = g_lpg_active; d["lpg_in"] = g_lpg_in; d["lpg_ov"] = g_lpg_override; d["lpg_mv"] = g_lpg_mv;
   JsonObject c = d["diag"].to<JsonObject>();
   c["open"] = g_state.open_count; c["bounce"] = g_state.bounce_count; c["late"] = g_state.late_count;
   c["cut"] = g_state.cut_count; c["dwell_limited"] = g_state.dwell_limited_count; c["failsafe"] = g_failsafe_count;
@@ -154,7 +162,8 @@ static void hCells() {
   for (JsonArray c : d.as<JsonArray>()) {
     int r = c[0], k = c[1];
     if (r < 0 || r >= IGN_NRPM || k < 0 || k >= IGN_NMAP) continue;
-    g_tables.adv_x10[r][k] = ign_clamp((int32_t)lroundf(c[2].as<float>() * 10.0f), g_params.min_adv_x10, g_params.trigger_adv_x10);
+    int16_t (*dst)[IGN_NMAP] = (c.size() > 3 && c[3].as<int>() == 1) ? g_tables.adv_lpg_x10 : g_tables.adv_x10;
+    dst[r][k] = ign_clamp((int32_t)lroundf(c[2].as<float>() * 10.0f), g_params.min_adv_x10, g_params.trigger_adv_x10);
   }
   g_dirty = true;
   sendOk();
@@ -183,6 +192,25 @@ static void hLock() {
   float adv = d["adv"] | 10.0f;
   g_lock_adv_x10 = ign_clamp((int32_t)lroundf(adv * 10), g_params.min_adv_x10, g_params.trigger_adv_x10);
   g_lock_en = d["en"] ? 1 : 0;
+  sendOk();
+}
+
+static void hLpg() {
+  JsonDocument d;
+  if (!readBody(d)) return sendErr(400, "bad json");
+  int o = d["override"] | 0;
+  g_lpg_override = (o >= 0 && o <= 2) ? o : 0;
+  sendOk();
+}
+
+// Copy petrol map -> LPG map, adding an optional offset (deg).
+static void hCopyMap() {
+  JsonDocument d;
+  readBody(d);
+  int off = (int)lroundf((d["offset"] | 0.0f) * 10.0f);
+  for (int i = 0; i < IGN_NRPM; i++) for (int k = 0; k < IGN_NMAP; k++)
+    g_tables.adv_lpg_x10[i][k] = ign_clamp(g_tables.adv_x10[i][k] + off, g_params.min_adv_x10, g_params.trigger_adv_x10);
+  g_dirty = true;
   sendOk();
 }
 
@@ -241,6 +269,8 @@ static void webBegin() {
   server.on("/api/defaults", HTTP_POST, hDefaults);
   server.on("/api/lock", HTTP_POST, hLock);
   server.on("/api/sim", HTTP_POST, hSim);
+  server.on("/api/lpg", HTTP_POST, hLpg);
+  server.on("/api/copymap", HTTP_POST, hCopyMap);
   server.on("/api/baro", HTTP_POST, hBaro);
   server.on("/update", HTTP_GET, []() {
     if (!authOk()) return;

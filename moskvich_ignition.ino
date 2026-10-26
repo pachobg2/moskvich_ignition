@@ -23,6 +23,12 @@ static float s_vbatMv = 12000.0f;
 static float s_idleInt = 0;
 static uint32_t s_lastAdc = 0, s_lastCtl = 0;
 static bool s_wasRunning = false;
+static float s_lpgMv = 0;
+static int s_lpgCnt = 0;
+static uint8_t s_lpgIn = 0;
+volatile uint8_t g_lpg_override = 0;      // 0 auto (follow valve), 1 force petrol, 2 force LPG
+volatile uint8_t g_lpg_in = 0;
+volatile int32_t g_lpg_mv = 0;
 
 static void sampleAnalog() {
   // Two reads per tick, EMA across ticks (~1 kHz): smooths intake pulsation
@@ -43,6 +49,19 @@ static void sampleAnalog() {
   float vb = (float)analogReadMilliVolts(PIN_VBAT) / VBAT_DIV_RATIO + VBAT_CAL_MV;
   s_vbatMv += (vb - s_vbatMv) * (1.0f / 32.0f);
   g_vbat_mv = (int32_t)s_vbatMv;
+
+  float lv = (float)analogReadMilliVolts(PIN_LPG) / LPG_DIV_RATIO;
+  s_lpgMv += (lv - s_lpgMv) * (1.0f / 16.0f);
+  g_lpg_mv = (int32_t)s_lpgMv;
+}
+
+// LPG valve input: hysteresis + ~300 ms debounce, then pick the active map.
+static void lpgUpdate() {
+  if (s_lpgMv > LPG_ON_MV) { if (s_lpgCnt < 6) s_lpgCnt++; }
+  else if (s_lpgMv < LPG_OFF_MV) { if (s_lpgCnt > 0) s_lpgCnt--; }
+  if (s_lpgCnt >= 6) s_lpgIn = 1; else if (s_lpgCnt <= 0) s_lpgIn = 0;
+  g_lpg_in = s_lpgIn;
+  g_lpg_active = g_lpg_override == 0 ? s_lpgIn : (g_lpg_override == 2);
 }
 
 // Idle: nudge ignition timing to hold the target rpm. PI on rpm error, only
@@ -88,6 +107,7 @@ void setup() {
   analogReadResolution(12);
   analogSetPinAttenuation(PIN_MAP, ADC_11db);
   analogSetPinAttenuation(PIN_VBAT, ADC_11db);
+  analogSetPinAttenuation(PIN_LPG, ADC_11db);
 
   storeDefaults();
   bool loaded = storeLoad();
@@ -121,6 +141,7 @@ void loop() {
     s_lastCtl = ms;
     ign_stall_check(&g_state, (uint32_t)esp_timer_get_time());
     idleControl();
+    lpgUpdate();
     bool running = engineRunning();
     if (s_wasRunning && !running && g_dirty) {                         // auto-save tuning edits when the engine stops
       if (storeSave()) Serial.println("auto-saved");

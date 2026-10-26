@@ -12,6 +12,7 @@ tolerates 3.3 V only on every pin.)
 | **GND** | Chassis / battery negative | Short, thick, to the same point as the coil's return. |
 | **COIL −** | Coil negative terminal | Replaces the wire that used to run to the distributor. |
 | **POINTS** | The wire that ran from coil (−) to the distributor | Now a quiet signal line. |
+| **LPG signal** (optional) | The 12 V wire that is live while the LPG valve/ECU is running on gas | High impedance sense only (see circuit block 8); no fuse needed beyond the wire's own. Share ground with the ECU. |
 | **MAP hose** | Intake manifold vacuum (below the throttle) | Nipple on the ECU; keep the hose short, rising toward the manifold so fuel/condensation drains out. |
 
 Leave the coil's (+) wiring and the ballast resistor as they are.
@@ -56,10 +57,16 @@ Leave the coil's (+) wiring and the ballast resistor as they are.
    in the hose barb) calms intake pulsation; the firmware also filters.
 6. **Battery sense** — 100 kΩ / 22 kΩ divider + 100 nF from the protected 12 V
    to GPIO1 (ratio 0.1803 → 16 V reads 2.9 V). Used for dwell compensation.
-7. **Status LED** — on-board (GPIO8): blip = stopped, fast blink = cranking,
+7. **LPG input** (optional) — 100 kΩ / 22 kΩ divider + 100 nF from the LPG
+   12 V signal to GPIO3 (same ratio as the battery sense). The ECU treats
+   > 7 V as "LPG on" and < 4 V as "off", with ~300 ms debounce, so ignition
+   noise on the wire is ignored. Unconnected = petrol (add a 100 kΩ pulldown
+   at the divider's bottom leg if the wire floats). Thresholds and divider
+   ratio are in `config.h`.
+8. **Status LED** — on-board (GPIO8): blip = stopped, fast blink = cranking,
    solid = running.
 
-Pins in `config.h`: MAP 0, VBAT 1, POINTS 4, COIL 5, LED 8 (ADC1 pins only, avoiding
+Pins in `config.h`: MAP 0, VBAT 1, LPG 3, POINTS 4, COIL 5, LED 8 (ADC1 pins only, avoiding
 GPIO2/8/9 strapping for anything driven at boot — GPIO8 is just the LED).
 
 ## Preparing the distributor (one-time)

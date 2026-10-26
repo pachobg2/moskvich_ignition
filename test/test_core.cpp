@@ -18,18 +18,32 @@ static void test_lookup() {
   printf("lookup/dwell\n");
   IgnTables t; ign_default_tables(&t);
   for (int i = 0; i < IGN_NRPM; i++)
-    for (int j = 0; j < IGN_NMAP; j++) CHECK(ign_table_lookup(&t, t.rpm_axis[i], t.map_axis[j]) == t.adv_x10[i][j],
+    for (int j = 0; j < IGN_NMAP; j++) CHECK(ign_table_lookup(&t, t.adv_x10, t.rpm_axis[i], t.map_axis[j]) == t.adv_x10[i][j],
                                               "grid point %d,%d", i, j);
   // midpoint of four equal corners
   t.adv_x10[3][4] = 100; t.adv_x10[3][5] = 200; t.adv_x10[4][4] = 300; t.adv_x10[4][5] = 400;
   int32_t rpm = (t.rpm_axis[3] + t.rpm_axis[4]) / 2, mp = (t.map_axis[4] + t.map_axis[5]) / 2;   // 1250, 42 (frac .4)
-  int32_t v = ign_table_lookup(&t, rpm, mp);
+  int32_t v = ign_table_lookup(&t, t.adv_x10, rpm, mp);
   CHECK(v >= 238 && v <= 242, "bilinear centre %d (want 240)", v);
-  CHECK(ign_table_lookup(&t, 0, 0) == t.adv_x10[0][0], "clamp low");
-  CHECK(ign_table_lookup(&t, 99999, 999) == t.adv_x10[IGN_NRPM - 1][IGN_NMAP - 1], "clamp high");
+  CHECK(ign_table_lookup(&t, t.adv_x10, 0, 0) == t.adv_x10[0][0], "clamp low");
+  CHECK(ign_table_lookup(&t, t.adv_x10, 99999, 999) == t.adv_x10[IGN_NRPM - 1][IGN_NMAP - 1], "clamp high");
   // degenerate (equal) axis values must not divide by zero
-  t.rpm_axis[5] = t.rpm_axis[6]; ign_table_lookup(&t, t.rpm_axis[5], 50);
+  t.rpm_axis[5] = t.rpm_axis[6]; ign_table_lookup(&t, t.adv_x10, t.rpm_axis[5], 50);
 
+  {
+    IgnParams q; ign_default_params(&q);
+    IgnInputs in{}; in.map_kpa = 45;
+    int32_t petrol = ign_target_advance(&q, &t, &in, 2500, 0);
+    in.lpg = 1; q.lpg_mode = 0; q.lpg_offset_x10 = 40;
+    CHECK(ign_target_advance(&q, &t, &in, 2500, 0) == petrol + 40, "lpg static offset");
+    q.lpg_mode = 1; t.adv_lpg_x10[6][4] = 111; t.adv_lpg_x10[6][5] = 111; t.adv_lpg_x10[7][4] = 111; t.adv_lpg_x10[7][5] = 111;
+    in.map_kpa = 42;
+    CHECK(ign_target_advance(&q, &t, &in, 2400, 0) == 111, "lpg separate map (%d)", (int)ign_target_advance(&q, &t, &in, 2400, 0));
+    in.lpg = 0;
+    CHECK(ign_target_advance(&q, &t, &in, 2400, 0) != 111, "petrol unaffected by lpg map");
+    in.lpg = 1; q.lpg_mode = 0; q.lpg_offset_x10 = 400;
+    CHECK(ign_target_advance(&q, &t, &in, 2500, 0) <= q.max_adv_x10, "lpg offset clamped to max advance");
+  }
   IgnParams p; ign_default_params(&p);
   CHECK(ign_dwell_for_voltage(&p, 12000) == 4000, "dwell @12V");
   CHECK(ign_dwell_for_voltage(&p, 13000) == 3750, "dwell @13V interp (%u)", ign_dwell_for_voltage(&p, 13000));

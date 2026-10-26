@@ -33,12 +33,18 @@ const int PIN_MAP    = 0;   // MAP sensor, via divider (ADC1_CH0)
 const int PIN_VBAT   = 1;   // 12 V sense, via divider (ADC1_CH1)
 const int PIN_POINTS = 4;   // conditioned points signal (NPN inverter: points open = pin LOW)
 const int PIN_COIL   = 5;   // IGBT gate. HIGH = coil charging. External 10k pulldown REQUIRED.
+const int PIN_LPG    = 3;   // LPG valve 12 V signal, via divider (ADC1_CH3)
 const int PIN_LED    = 8;   // SuperMini on-board LED, active LOW
 const bool LED_ACTIVE_LOW = true;
 
 // MAP sensor: any linear 1-bar analog sensor. Slope/offset are NOT set here: use
 // Setup -> MAP sensor in the web app (two-point calibration; defaults to an MPX4115).
 const float MAP_DIV_RATIO   = 0.60f;     // ADC volts / sensor volts (10k over 15k -> 15/25)
+
+// LPG signal divider (same 100k/22k as battery sense): ON above LPG_ON_MV, OFF below LPG_OFF_MV
+const float LPG_DIV_RATIO   = 0.1803f;
+const int   LPG_ON_MV       = 7000;
+const int   LPG_OFF_MV      = 4000;
 
 // 12 V sense divider: ADC volts / battery volts (100k over 22k -> 22/122)
 const float VBAT_DIV_RATIO  = 0.1803f;

@@ -27,6 +27,7 @@ volatile int32_t g_vbat_mv     = 12000;
 volatile int32_t g_idle_trim_x10 = 0;
 volatile uint8_t g_lock_en  = 0;           // timing-light mode
 volatile int16_t g_lock_adv_x10 = 100;
+volatile uint8_t g_lpg_active = 0;         // map selection (valve input or override)
 volatile uint8_t g_sim_on   = 0;           // bench simulator running (real GPIO ignored)
 volatile uint32_t g_sim_rpm = 0;
 volatile uint32_t g_spark_count = 0;
@@ -84,6 +85,7 @@ static void IRAM_ATTR handleOpenEdge(uint32_t now) {
   in.map_kpa = (g_map_kpa_x10 + 5) / 10;
   in.vbat_mv = g_vbat_mv;
   in.idle_trim_x10 = g_idle_trim_x10;
+  in.lpg = g_lpg_active;
   in.lock_en = g_lock_en;
   in.lock_adv_x10 = g_lock_adv_x10;
   IgnActions a;
