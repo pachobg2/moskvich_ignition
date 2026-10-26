@@ -386,6 +386,13 @@ Object.assign(BG, {
  "Copied to Custom": "Копирано в „Собствена“",
  "slot out of range": "номерът на картата е извън диапазона"
 });
+Object.assign(BG, {
+ " cells exceed the current limit of ": " клетки надвишават текущото ограничение от ",
+ "set by Maximum advance — raise it in Setup → Limits & rev limiter": "задава се от Максимално изпреварване — увеличете го в Настройки → Граници и ограничител на оборотите",
+ "set by the Trigger angle — raise it in Setup → Install & trigger": "задава се от Ъгъл на тригера — увеличете го в Настройки → Монтаж и тригер",
+ "the ECU clips them.": "блокът ги ограничава.",
+ " (acceleration compensation 100%, cranking advance ≤3°, maximum advance 60°)": " (компенсация при ускорение 100%, изпреварване при стартиране ≤3°, максимално изпреварване 60°)"
+});
 let LANG = 'en';
 try { LANG = new URLSearchParams(location.search).get('lang') || localStorage.getItem('lang') || (/^bg/i.test(navigator.language) ? 'bg' : 'en'); } catch (e) {}
 if (LANG !== 'bg') LANG = 'en';
@@ -604,7 +611,8 @@ function updateSlotUi() {
   const lim = Math.min(cfg.params.max_adv, cfg.params.trigger_adv);
   const n = curAdv().filter(v => v > lim + 1e-9).length, note = $('#clipNote');
   note.hidden = n === 0;
-  if (n) note.textContent = n + tr(' cells exceed the limit of ') + lim + tr('° (the lower of Max advance and the Trigger angle); the ECU clips them.');
+  const byMax = cfg.params.max_adv <= cfg.params.trigger_adv;
+  if (n) note.textContent = n + tr(' cells exceed the current limit of ') + lim + '° (' + tr(byMax ? 'set by Maximum advance — raise it in Setup → Limits & rev limiter' : 'set by the Trigger angle — raise it in Setup → Install & trigger') + '); ' + tr('the ECU clips them.');
 }
 $('#mapSlot').onchange = async e => {
   flushCells(); cfg.params.map_sel = +e.target.value; undo = []; sel = null; paintMap();
@@ -738,9 +746,10 @@ function buildSetup() {
     const close = e.target.value === '1';
     const f = k => $('#setupForms [data-k=' + k + ']');
     f('trigger_adv').value = close ? 120 : 40;
-    if (close) { if (+f('crank_adv').value > 3) f('crank_adv').value = 3; f('accel_comp').value = 100; }
+    if (close) { if (+f('crank_adv').value > 3) f('crank_adv').value = 3; f('accel_comp').value = 100; f('max_adv').value = 60; }
+    else if (+f('max_adv').value > 40) f('max_adv').value = 38;
     showRef();
-    toast(tr('Typical values filled in') + (close ? tr(' (acceleration compensation 100%, cranking advance ≤3°)') : '') + tr(' — press Apply, then calibrate with the timing light'));
+    toast(tr('Typical values filled in') + (close ? tr(' (acceleration compensation 100%, cranking advance ≤3°, maximum advance 60°)') : '') + tr(' — press Apply, then calibrate with the timing light'));
   };
   showRef();
   $('#dwell').innerHTML = '<b>Volts</b><b>Dwell µs</b><span></span>' + p.dwell_mv.map((mv, i) =>
