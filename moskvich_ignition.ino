@@ -86,14 +86,24 @@ static void idleControl() {
   }
 }
 
+// ESP32-C3-Zero on-board WS2812 (GPIO10). Kept dim: it sits next to the USB port, not on a dashboard.
 static void ledUpdate() {
-  bool on;
   uint32_t ms = millis();
-  if (!g_state.have_edge && !g_sim_on) on = (ms % 2000) < 80;              // stopped: short blip
-  else if (g_state.cranking && !g_sim_on) on = (ms % 200) < 100;           // cranking: fast blink
-  else on = true;                                                          // running: solid
-  if (g_output_enabled == 0) on = (ms % 100) < 50;                         // OTA
-  digitalWrite(PIN_LED, (on ^ LED_ACTIVE_LOW) ? HIGH : LOW);
+  uint8_t r = 0, g = 0, b = 0;
+  if (g_output_enabled == 0) {                                              // OTA in progress: violet blink
+    if ((ms % 200) < 100) { r = 24; b = 24; }
+  } else if (!g_state.have_edge && !g_sim_on) {                             // stopped: short blue blip
+    if ((ms % 2000) < 80) b = 20;
+  } else if (g_state.cranking && !g_sim_on) {                               // cranking: fast yellow blink
+    if ((ms % 200) < 100) { r = 24; g = 14; }
+  } else if (g_sim_on) {                                                    // bench simulator: violet
+    r = 16; b = 24;
+  } else if (g_lpg_active) {                                                // running on LPG: cyan
+    g = 18; b = 14;
+  } else {                                                                  // running on petrol: green
+    g = 22;
+  }
+  neopixelWrite(PIN_LED, r, g, b);
 }
 
 void setup() {
@@ -101,7 +111,6 @@ void setup() {
   // while the chip is in reset/boot; this keeps it low from here on.)
   pinMode(PIN_COIL, OUTPUT);
   digitalWrite(PIN_COIL, LOW);
-  pinMode(PIN_LED, OUTPUT);
   pinMode(PIN_POINTS, INPUT);
   Serial.begin(115200);
   analogReadResolution(12);

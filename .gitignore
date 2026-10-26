@@ -4,3 +4,4 @@ test/*.exe
 test/*.o
 simlog.csv
 test/*.pdb
+__pycache__/

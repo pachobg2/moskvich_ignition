@@ -77,6 +77,7 @@ WiFi network — no app to install, no router needed.
 | `test/test_core.cpp` | engine-model simulation of the real ISR logic |
 | `config.h.example` | copy to `config.h`: AP/OTA passwords, pins, sensor constants (gitignored) |
 | `docs/HARDWARE.md` | circuit, parts list, wiring, install & tuning procedure |
+| `hardware/` | **schematic, PCB (KiCad), BOM** — through-hole, ESP32-C3-Zero, IGBT cut-out; see `hardware/README.md` |
 
 ## Build
 
@@ -135,3 +136,4 @@ Install, wiring and the timing-light calibration procedure are in
 | 1.3.0 | 2026-10-27 | Setup: choice of trigger reference — points OPEN edge (distributor locked at full advance, ~40°) or points CLOSE edge (factory distributor, ~120°) with automatic OPEN-edge cranking reference; trigger angle range up to 160°; extended host tests. Settings from 1.2.x are discarded on first boot (defaults load). |
 | 1.4.0 | 2026-10-27 | Web interface available in Bulgarian (БГ/EN switch, default from browser language), bilingual firmware-upload page; fix: elements marked hidden (e.g. the LPG copy button on the petrol map) were still shown. |
 | 1.4.1 | 2026-10-27 | UI: hover tooltips (in both languages) on every setting and control, e.g. what Gain (P) and Gain (I) do; the web page is now stored gzip-compressed (flash use 92% -> 88%). |
+| 1.5.0 | 2026-10-27 | Targets the ESP32-C3-Zero board (new PCB in `hardware/`): pins LPG 0 / MAP 1 / VBAT 3 / POINTS 4 / COIL 6, status shown on the on-board RGB LED (GPIO10). |

@@ -2,7 +2,7 @@
 
 Values below are a **starting design**, not a tested board — check them against
 your coil, ballast resistor and sensor datasheets before building. (The ESP32-C3
-tolerates 3.3 V only on every pin.)
+tolerates 3.3 V only on every pin.) The board design is in `../hardware/`.
 
 ## Connections to the car (4 wires + 1 hose)
 
@@ -19,55 +19,32 @@ Leave the coil's (+) wiring and the ballast resistor as they are.
 
 ## Circuit blocks
 
-1. **Power input** — reverse-polarity protection (P-MOSFET or Schottky), TVS for
-   load-dump (SMBJ24A-class), LC filter, then a wide-input buck to 5 V (≥ 1 A,
-   e.g. a 40 V automotive buck). 5 V feeds the MAP sensor and the C3 board's
-   5 V pin (on-board LDO makes 3.3 V). Bulk 100 µF + 100 nF at the sensor.
-2. **Points input** — pull-up from the protected 12 V through **1 kΩ** to the
-   POINTS terminal (≈ 12 mA wetting current keeps the contacts clean). From
-   the terminal: 10 kΩ → base of a BC847 NPN (base–emitter 22 kΩ), collector
-   pulled up to 3.3 V by 4.7 kΩ and wired to GPIO4 through a 1 kΩ plus
-   10 nF to ground. Points **closed** → pin high; points **open** → pin low
-   (the *falling* edge is the trigger — matches the default setting).
-   **Remove the distributor condenser**: with no coil current through the points
-   it is unnecessary and would slow the edge (RC with the pull-up shifts the
-   timing by 100–200 µs ≈ several degrees at high rpm).
-3. **Coil driver** — an ignition IGBT with internal clamp, e.g.
-   **ISL9V3040 / ISL9V5036** (≈ 400 V clamp, logic-level gate) or a
-   Darlington ignition driver with proper drive. GPIO5 → 100 Ω → gate, **10 kΩ
-   gate-to-emitter pulldown (mandatory: keeps the coil off while the chip
-   boots)**. Collector → COIL −, emitter → GND. Heat-sink it (mount to the
-   case) — expect ~2–3 W at 6000 rpm (about 0.3 W at idle); a bare TO-220 would exceed its limit under the bonnet. **The TO-220 tab is the collector (COIL −, up to ~400 V spikes): insulate it from the case with a silicone/mica pad and a shoulder washer.** Verify temperature on the bench simulator at 6000 rpm, place a 100 nF + TVS near the collector. If your IGBT's V<sub>CE(sat)</sub>
-   is poor at 3.3 V gate drive, add a 5 V buffer (e.g. MCP1407 / a small NPN+PNP stage).
-4. **Stuck-on guard (recommended for the first PCB)** — the firmware limits coil
-   on-time to 9 ms, but a hung CPU cannot. Add a retriggerable one-shot (74HC123
-   or a 555 monostable, ~12 ms) in the gate path, or AC-couple the gate through a
-   capacitor with a bleed resistor, so the coil can never stay charged. Without
-   it, a firmware crash with GPIO5 held high will cook the coil.
-5. **MAP sensor** — NXP MPXH6115A6U / MPX4115 family on the 5 V rail:
-   `Vout = Vs·(0.009·kPa − 0.095)` → 4.0 V at 100 kPa, up to 4.8 V. Divider
-   **10 kΩ / 15 kΩ** (ratio 0.60 → ≤ 2.9 V) to GPIO0 with 100 nF. The divider
-   ratio lives in `config.h`; slope/offset are set in the web app (Setup → MAP
-   sensor, two-point calibration), so the MPX4115 can be replaced by any cheap
-   linear 1-bar analog sensor (GM 1-bar / Lada "ДАД" / Bosch, ~€5–15, 5 V,
-   3-wire). **Check the bar range on the label** — GM part numbers are used for
-   1-, 2- and 3-bar sensors; a 2/3-bar sensor would give poor resolution at
-   manifold pressures. Calibrate against atmosphere (engine off) and a known
-   vacuum from a hand pump. A tiny pneumatic restriction (a pin-hole
-   in the hose barb) calms intake pulsation; the firmware also filters.
-6. **Battery sense** — 100 kΩ / 22 kΩ divider + 100 nF from the protected 12 V
-   to GPIO1 (ratio 0.1803 → 16 V reads 2.9 V). Used for dwell compensation.
-7. **LPG input** (optional) — 100 kΩ / 22 kΩ divider + 100 nF from the LPG
-   12 V signal to GPIO3 (same ratio as the battery sense). The ECU treats
-   > 7 V as "LPG on" and < 4 V as "off", with ~300 ms debounce, so ignition
-   noise on the wire is ignored. Unconnected = petrol (add a 100 kΩ pulldown
-   at the divider's bottom leg if the wire floats). Thresholds and divider
-   ratio are in `config.h`.
-8. **Status LED** — on-board (GPIO8): blip = stopped, fast blink = cranking,
-   solid = running.
+The complete design — schematic, PCB (through-hole only, ESP32-C3-Zero on sockets),
+BOM and mounting details for the IGBT cut-out — is in **[`hardware/`](../hardware/README.md)**.
+In short:
 
-Pins in `config.h`: MAP 0, VBAT 1, LPG 3, POINTS 4, COIL 5, LED 8 (ADC1 pins only, avoiding
-GPIO2/8/9 strapping for anything driven at boot — GPIO8 is just the LED).
+1. **Power** — PTC fuse, series diode (reverse polarity), 27 V TVS, 470 µF, then a
+   **Traco TSR 1-2450** 5 V buck module (6.5–36 V in). Coil current does **not**
+   flow through any of this: only the ECU's ~0.2 A.
+2. **Points input** — 1 kΩ pull-up from the protected 12 V gives ≈ 12 mA wetting current;
+   10 k / 22 k into a BC547 inverter (points open ⇒ GPIO4 low), 1 k + 10 nF filter.
+   **Remove the distributor condenser**: with no coil current through the points it is
+   unnecessary and would slow the edge.
+3. **Coil driver** — GPIO6 → **74HCT123** one-shot (≈ 12 ms, 27 k + 1 µF) → 100 Ω →
+   **ISL9V3040P3** ignition IGBT. The one-shot is the **stuck-on guard** (a hung MCU can
+   never leave the coil charged) and level-shifts to a 5 V gate drive. 10 k pull-downs
+   keep the coil off while the MCU boots. Q1 lies flat on the case floor in a PCB cut-out
+   (see `hardware/README.md`); the tab is the coil negative, so **insulate it from the case**.
+4. **MAP sensor** — any linear 5 V 1-bar analog sensor on J2 (GM-style 3-wire, Lada/Bosch,
+   MPX4115 …). 10 k / 15 k divider + 100 nF + 3.6 V zener into GPIO1. Slope/offset are
+   set in the web app (Setup → MAP sensor, two-point calibration).
+5. **Battery and LPG sense** — 100 k / 22 k dividers (+ 100 nF, 3.6 V zener) on GPIO3 and
+   GPIO0. LPG: > 7 V = on, < 4 V = off, ~300 ms debounce; unconnected = petrol.
+6. **Status LED** — the module's on-board RGB LED: blue blip = stopped, yellow = cranking,
+   green = petrol, cyan = LPG, violet = simulator / OTA.
+
+Pins in `config.h` (match the PCB): LPG 0, MAP 1, VBAT 3, POINTS 4, COIL 6, LED 10 —
+ADC1 pins only, because ADC2 is unusable while WiFi is on.
 
 ## Preparing the distributor (one-time)
 
