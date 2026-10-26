@@ -37,7 +37,7 @@ Leave the coil's (+) wiring and the ballast resistor as they are.
    Darlington ignition driver with proper drive. GPIO5 → 100 Ω → gate, **10 kΩ
    gate-to-emitter pulldown (mandatory: keeps the coil off while the chip
    boots)**. Collector → COIL −, emitter → GND. Heat-sink it (mount to the
-   case), place a 100 nF + TVS near the collector. If your IGBT's V<sub>CE(sat)</sub>
+   case) — expect ~2–3 W at 6000 rpm (about 0.3 W at idle); a bare TO-220 would exceed its limit under the bonnet. **The TO-220 tab is the collector (COIL −, up to ~400 V spikes): insulate it from the case with a silicone/mica pad and a shoulder washer.** Verify temperature on the bench simulator at 6000 rpm, place a 100 nF + TVS near the collector. If your IGBT's V<sub>CE(sat)</sub>
    is poor at 3.3 V gate drive, add a 5 V buffer (e.g. MCP1407 / a small NPN+PNP stage).
 4. **Stuck-on guard (recommended for the first PCB)** — the firmware limits coil
    on-time to 9 ms, but a hung CPU cannot. Add a retriggerable one-shot (74HC123
