@@ -3,3 +3,4 @@ build/
 test/*.exe
 test/*.o
 simlog.csv
+test/*.pdb
