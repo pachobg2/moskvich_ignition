@@ -6,7 +6,7 @@
 
 struct StoreHdr { uint32_t magic; uint16_t ver; uint16_t sz_params; uint16_t sz_tables; uint16_t crc; };
 static const uint32_t STORE_MAGIC = 0x4D534B34;   // "MSK4"
-static const uint16_t STORE_VER = 1;
+static const uint16_t STORE_VER = 2;
 
 volatile bool g_dirty = false;
 
@@ -52,6 +52,11 @@ static void sanitize(IgnParams& p, IgnTables& t) {
   p.idle_trim_max_x10 = ign_clamp(p.idle_trim_max_x10, 0, 150);
   p.map_gain_x1000 = ign_clamp(p.map_gain_x1000, 800, 1200);
   p.map_offset_x10 = ign_clamp(p.map_offset_x10, -300, 300);
+  if (p.map_cal_mv[1] < p.map_cal_mv[0] + 200 || p.map_cal_kpa_x10[1] < p.map_cal_kpa_x10[0] + 100 ||
+      p.map_cal_mv[1] > 5000 || p.map_cal_kpa_x10[1] > 3000) {            // unusable pair: fall back to MPX4115
+    p.map_cal_mv[0] = 425;  p.map_cal_kpa_x10[0] = 200;
+    p.map_cal_mv[1] = 4025; p.map_cal_kpa_x10[1] = 1000;
+  }
 
   for (int i = 0; i < IGN_NRPM; i++) {
     if (i && t.rpm_axis[i] <= t.rpm_axis[i - 1]) t.rpm_axis[i] = t.rpm_axis[i - 1] + 50;

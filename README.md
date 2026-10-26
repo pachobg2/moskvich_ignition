@@ -88,7 +88,7 @@ c++ -O2 -std=c++17 -I. test/test_core.cpp -o test/test_core && ./test/test_core
 2. **Live** — rpm, advance, MAP, battery, dwell, 60 s chart.
 3. **Map** — tap cells, ±0.5/±1, Set, Smooth, Range select, Undo, editable axes.
    The cells around the current operating point glow while the engine runs.
-4. **Setup** — trigger angle, cranking, idle, limits, dwell table, MAP calibration.
+4. **Setup** — trigger angle, cranking, idle, limits, dwell table, MAP sensor two-point calibration.
 5. **Tools** — timing-light lock, bench simulator, JSON backup/restore, reset, firmware update.
 
 Install, wiring and the timing-light calibration procedure are in
@@ -112,3 +112,4 @@ Install, wiring and the timing-light calibration procedure are in
 | Version | Date | Changes |
 |---|---|---|
 | 1.0.0 | 2026-10-26 | Initial release: points-trigger delay-only timing, 16×16 rpm×MAP map, voltage-compensated dwell, cranking/idle/rev-limit logic, WiFi AP web tuner (live data, map editor, setup, timing-light lock, bench simulator, backup, OTA), host-side engine-model tests. |
+| 1.1.0 | 2026-10-27 | MAP sensor two-point calibration in Setup (any linear 1-bar analog sensor, e.g. GM/Lada/Bosch; capture-from-live-reading buttons); `MAP_SLOPE`/`MAP_OFFSET`/`MAP_SUPPLY_MV` removed from `config.h`. Stored settings from 1.0.0 are discarded on first boot (defaults load). |

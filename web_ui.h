@@ -113,7 +113,14 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
     <div class="dw" id="dwell"></div>
     <small style="color:var(--mut)">How long the coil charges before each spark. Measure your coil: current should reach ~3.5–4 A (scope on a shunt) without the IGBT getting hot. Voltage is interpolated between rows.</small></div>
   <div class="card"><h2>MAP sensor</h2>
-    <div class="f"><label>Reading</label><div class="row"><input type="text" id="mapNow" readonly><span class="u">kPa</span></div></div>
+    <div class="f"><label>Reading</label><div class="row"><input type="text" id="mapNow" readonly><span class="u">kPa</span></div>
+      <small>Sensor output now: <b id="mapMv">–</b> mV</small></div>
+    <div class="f" style="margin-top:10px"><label>Two-point sensor calibration</label>
+      <div class="dw"><b>Point</b><b>Sensor mV</b><b>kPa</b>
+        <span>1 (low)</span><input type="number" id="cal0mv" step="1"><input type="number" id="cal0k" step="0.1">
+        <span>2 (high)</span><input type="number" id="cal1mv" step="1"><input type="number" id="cal1k" step="0.1"></div>
+      <div class="tools" style="margin-top:8px"><button id="cap0">Capture mV → point 1</button><button id="cap1">Capture mV → point 2</button><button id="calApply" class="pri">Apply</button></div>
+      <small>Works with any linear 1-bar analog sensor. Typical: point 2 = engine off at atmospheric pressure (type the local kPa, then Capture); point 1 = a known vacuum from a hand pump (e.g. 40 kPa absolute = 60 kPa below atmosphere) — or the datasheet values. Defaults are an MPX4115.</small></div>
     <div class="f" style="margin-top:10px"><label>Calibrate to atmosphere (engine OFF, hose connected)</label>
       <div class="row"><input type="number" id="baro" value="100" step="0.1"><span class="u">kPa</span><button id="btnBaro">Calibrate</button></div>
       <small>Enter the current local pressure (≈101.3 at sea level; ≈ 95 at 500 m). Adjusts the offset only.</small></div>
@@ -207,7 +214,7 @@ function showLive(l) {
   const sb = $('#saveBtn');
   sb.disabled = !l.dirty || !l.can_save;
   sb.textContent = l.dirty ? (l.can_save ? 'Save' : 'Unsaved') : 'Saved';
-  $('#mapNow').value = fmt(l.map);
+  $('#mapNow').value = fmt(l.map); $('#mapMv').textContent = l.map_mv;
   $('#btnLock').textContent = l.lock ? 'Unlock' : 'Lock';
   $('#btnLock').className = l.lock ? 'pri' : '';
   $('#btnSim').textContent = l.state === 5 ? 'Stop' : 'Start';
@@ -246,7 +253,7 @@ async function poll() {
 async function loadCfg() {
   cfg = await api('/api/config');
   $('#fw').textContent = 'v' + cfg.fw;
-  buildMap(); buildSetup(); paintMap();
+  buildMap(); buildSetup(); fillCal(); paintMap();
 }
 
 /* ------------------------------------------------------------ MAP editor */
@@ -401,6 +408,14 @@ $('#applySetup').onclick = async () => {
   params.dwell_us = $$('[data-dus]').map(e => Math.round(parseFloat(e.value)));
   try { await api('/api/config', 'POST', { params }); await loadCfg(); toast('Applied'); } catch (e) { toast(e.message, 1); }
 };
+function fillCal() { const p = cfg.params; $('#cal0mv').value = p.map_cal_mv[0]; $('#cal1mv').value = p.map_cal_mv[1]; $('#cal0k').value = p.map_cal_kpa[0]; $('#cal1k').value = p.map_cal_kpa[1]; }
+$('#cap0').onclick = () => { if (live) $('#cal0mv').value = live.map_mv; };
+$('#cap1').onclick = () => { if (live) $('#cal1mv').value = live.map_mv; };
+$('#calApply').onclick = async () => {
+  const mv = [+$('#cal0mv').value, +$('#cal1mv').value], k = [+$('#cal0k').value, +$('#cal1k').value];
+  if (mv[1] < mv[0] + 200 || k[1] < k[0] + 10) return toast('Points too close: need point 2 > point 1 by ≥200 mV and ≥10 kPa', 1);
+  try { await api('/api/config', 'POST', { params: { map_cal_mv: mv, map_cal_kpa: k } }); await loadCfg(); toast('MAP calibration applied'); } catch (e) { toast(e.message, 1); }
+};
 $('#btnBaro').onclick = async () => { try { await api('/api/baro', 'POST', { kpa: parseFloat($('#baro').value) }); await loadCfg(); toast('MAP calibrated'); } catch (e) { toast(e.message, 1); } };
 
 /* ------------------------------------------------------------ tools */
@@ -429,7 +444,7 @@ function mockApi(path, method, body) {
     const mapAx = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 80, 85, 90, 95, 100];
     const base = [8, 10, 13, 16, 20, 24, 26, 28, 29, 30, 30, 30, 30, 30, 30, 30], wot = [10, 10, 10, 10, 9, 9, 8, 8, 7, 7, 6, 6, 6, 6, 6, 6], adv = [];
     for (let i = 0; i < NR; i++) for (let j = 0; j < NM; j++) { const load = Math.max(0, mapAx[j] - 35); adv.push(Math.max(6, Math.round((base[i] - wot[i] * load / 65) * 2) / 2)); }
-    mock = { fw: 'mock', params: { trigger_adv: 40, trigger_edge: 0, latency_us: 0, cylinders: 4, idle_enable: 1, accel_comp: 0, crank_rpm: 350, crank_adv: 5, min_adv: -5, max_adv: 38, rev_soft: 5600, rev_hard: 6000, rev_retard: 10, adv_slew: 4, min_dwell: 1500, max_dwell: 7000, idle_target: 850, idle_map_max: 55, idle_kp: .8, idle_ki: .6, idle_trim_max: 8, map_gain_x1000: 1000, map_offset: 0, dwell_mv: [8000, 10000, 12000, 14000, 16000], dwell_us: [5500, 4800, 4000, 3500, 3200] },
+    mock = { fw: 'mock', params: { map_cal_mv: [425, 4025], map_cal_kpa: [20, 100], trigger_adv: 40, trigger_edge: 0, latency_us: 0, cylinders: 4, idle_enable: 1, accel_comp: 0, crank_rpm: 350, crank_adv: 5, min_adv: -5, max_adv: 38, rev_soft: 5600, rev_hard: 6000, rev_retard: 10, adv_slew: 4, min_dwell: 1500, max_dwell: 7000, idle_target: 850, idle_map_max: 55, idle_kp: .8, idle_ki: .6, idle_trim_max: 8, map_gain_x1000: 1000, map_offset: 0, dwell_mv: [8000, 10000, 12000, 14000, 16000], dwell_us: [5500, 4800, 4000, 3500, 3200] },
       tables: { rpm_axis: rpmAx, map_axis: mapAx, adv }, dirty: false, lock: false, lockAdv: 10, sim: 0, t0: Date.now() };
   }
   return new Promise(res => setTimeout(() => {

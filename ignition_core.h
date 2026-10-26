@@ -77,6 +77,9 @@ struct IgnParams {
   // MAP calibration (applied to the sensor-formula result)
   int16_t  map_gain_x1000;        // 1000 = 1.000
   int16_t  map_offset_x10;        // kPa x10
+  // MAP sensor two-point calibration (sensor output mV -> kPa x10), any linear 1-bar sensor
+  uint16_t map_cal_mv[2];
+  int16_t  map_cal_kpa_x10[2];
 };
 
 struct IgnTables {
@@ -319,6 +322,8 @@ static inline void ign_default_params(IgnParams* p) {
   p->idle_trim_max_x10 = 80;
   p->map_gain_x1000 = 1000;
   p->map_offset_x10 = 0;
+  p->map_cal_mv[0] = 425;   p->map_cal_kpa_x10[0] = 200;    // MPX4115 @ 5 V: 20 kPa
+  p->map_cal_mv[1] = 4025;  p->map_cal_kpa_x10[1] = 1000;   //                100 kPa
 }
 
 // Conservative starting map for a stock-ish carburetted 4-cylinder. NOT a

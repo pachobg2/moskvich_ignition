@@ -36,12 +36,9 @@ const int PIN_COIL   = 5;   // IGBT gate. HIGH = coil charging. External 10k pul
 const int PIN_LED    = 8;   // SuperMini on-board LED, active LOW
 const bool LED_ACTIVE_LOW = true;
 
-// MAP sensor: NXP MPX4115 / MPXH6115 family, 5 V supply:
-//   Vout = Vs * (0.009 * kPa - 0.095)
-const float MAP_SUPPLY_MV   = 5000.0f;
+// MAP sensor: any linear 1-bar analog sensor. Slope/offset are NOT set here: use
+// Setup -> MAP sensor in the web app (two-point calibration; defaults to an MPX4115).
 const float MAP_DIV_RATIO   = 0.60f;     // ADC volts / sensor volts (10k over 15k -> 15/25)
-const float MAP_SLOPE       = 0.009f;
-const float MAP_OFFSET      = 0.095f;
 
 // 12 V sense divider: ADC volts / battery volts (100k over 22k -> 22/122)
 const float VBAT_DIV_RATIO  = 0.1803f;

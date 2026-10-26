@@ -45,8 +45,14 @@ Leave the coil's (+) wiring and the ballast resistor as they are.
    it, a firmware crash with GPIO5 held high will cook the coil.
 5. **MAP sensor** — NXP MPXH6115A6U / MPX4115 family on the 5 V rail:
    `Vout = Vs·(0.009·kPa − 0.095)` → 4.0 V at 100 kPa, up to 4.8 V. Divider
-   **10 kΩ / 15 kΩ** (ratio 0.60 → ≤ 2.9 V) to GPIO0 with 100 nF. The ratio and
-   formula constants live in `config.h`. A tiny pneumatic restriction (a pin-hole
+   **10 kΩ / 15 kΩ** (ratio 0.60 → ≤ 2.9 V) to GPIO0 with 100 nF. The divider
+   ratio lives in `config.h`; slope/offset are set in the web app (Setup → MAP
+   sensor, two-point calibration), so the MPX4115 can be replaced by any cheap
+   linear 1-bar analog sensor (GM 1-bar / Lada "ДАД" / Bosch, ~€5–15, 5 V,
+   3-wire). **Check the bar range on the label** — GM part numbers are used for
+   1-, 2- and 3-bar sensors; a 2/3-bar sensor would give poor resolution at
+   manifold pressures. Calibrate against atmosphere (engine off) and a known
+   vacuum from a hand pump. A tiny pneumatic restriction (a pin-hole
    in the hose barb) calms intake pulsation; the firmware also filters.
 6. **Battery sense** — 100 kΩ / 22 kΩ divider + 100 nF from the protected 12 V
    to GPIO1 (ratio 0.1803 → 16 V reads 2.9 V). Used for dwell compensation.

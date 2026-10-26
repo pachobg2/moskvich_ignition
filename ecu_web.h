@@ -10,6 +10,7 @@ WebServer server(80);
 DNSServer dns;
 
 extern volatile uint32_t g_map_raw_mv;       // defined in the .ino
+extern volatile uint32_t g_map_sensor_mv;    // filtered sensor-output mV (before the divider)
 extern float g_baro_hint_kpa;
 static bool g_otaOpen = false;
 
@@ -41,6 +42,14 @@ static void paramsJson(JsonObject j, bool rd, IgnParams& p) {
   P_DEG("idle_trim_max", idle_trim_max_x10);
   P_INT("map_gain_x1000", map_gain_x1000);
   P_DEG("map_offset", map_offset_x10);
+  if (rd) {
+    JsonArrayConst cm = j["map_cal_mv"], ck = j["map_cal_kpa"];
+    if (cm.size() == 2 && ck.size() == 2)
+      for (int i = 0; i < 2; i++) { p.map_cal_mv[i] = cm[i].as<int>(); p.map_cal_kpa_x10[i] = (int16_t)lroundf(ck[i].as<float>() * 10.0f); }
+  } else {
+    JsonArray cm = j["map_cal_mv"].to<JsonArray>(), ck = j["map_cal_kpa"].to<JsonArray>();
+    for (int i = 0; i < 2; i++) { cm.add(p.map_cal_mv[i]); ck.add(p.map_cal_kpa_x10[i] / 10.0f); }
+  }
   if (rd) {
     JsonArrayConst mv = j["dwell_mv"], us = j["dwell_us"];
     for (int i = 0; i < IGN_NDWELL; i++) {
@@ -104,7 +113,7 @@ static void hLive() {
   d["can_save"] = !engineRunning();
   d["lock"] = (bool)g_lock_en;
   d["lock_adv"] = g_lock_adv_x10 / 10.0f;
-  d["map_mv"] = g_map_raw_mv;
+  d["map_mv"] = g_map_sensor_mv;
   d["sparks"] = g_spark_count;
   JsonObject c = d["diag"].to<JsonObject>();
   c["open"] = g_state.open_count; c["bounce"] = g_state.bounce_count; c["late"] = g_state.late_count;

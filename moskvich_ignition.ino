@@ -14,6 +14,8 @@
 #include "ecu_web.h"
 
 volatile uint32_t g_map_raw_mv = 0;
+volatile uint32_t g_map_sensor_mv = 0;
+static float s_mapMvF = 0;
 float g_baro_hint_kpa = 101.3f;
 
 static float s_mapKpa = 100.0f;      // filtered, calibrated
@@ -28,7 +30,11 @@ static void sampleAnalog() {
   uint32_t mv = (analogReadMilliVolts(PIN_MAP) + analogReadMilliVolts(PIN_MAP)) / 2;
   g_map_raw_mv = mv;
   float vs = (float)mv / MAP_DIV_RATIO;                          // sensor output, mV
-  float kpa = (vs / MAP_SUPPLY_MV + MAP_OFFSET) / MAP_SLOPE;
+  s_mapMvF += (vs - s_mapMvF) * (1.0f / 12.0f);
+  g_map_sensor_mv = (uint32_t)s_mapMvF;
+  const IgnParams& q = g_params;                                  // two-point linear calibration
+  float k0 = q.map_cal_kpa_x10[0] / 10.0f, k1 = q.map_cal_kpa_x10[1] / 10.0f;
+  float kpa = k0 + (vs - q.map_cal_mv[0]) * (k1 - k0) / (float)(q.map_cal_mv[1] - q.map_cal_mv[0]);
   kpa = kpa * (g_params.map_gain_x1000 / 1000.0f) + g_params.map_offset_x10 / 10.0f;
   kpa = constrain(kpa, 0.0f, 250.0f);
   s_mapKpa += (kpa - s_mapKpa) * (1.0f / 12.0f);
