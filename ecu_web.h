@@ -270,8 +270,11 @@ static void hBaro() {
   sendOk();
 }
 
+static bool s_uploadSeen = false;
+
 static void hUpdateDone() {
-  bool ok = !Update.hasError();
+  if (engineRunning()) return sendErr(409, "engine running - stop it to update");
+  bool ok = s_uploadSeen && !Update.hasError() && Update.isFinished();   // a bare POST must not reboot the ECU
   server.sendHeader("Connection", "close");
   server.send(ok ? 200 : 500, "text/plain; charset=utf-8", ok ? "OK - rebooting / рестартиране" : "FAILED / грешка");
   if (ok) { delay(300); ESP.restart(); }
@@ -280,6 +283,7 @@ static void hUpdateDone() {
 static void hUpdateUpload() {
   HTTPUpload& u = server.upload();
   if (u.status == UPLOAD_FILE_START) {
+    s_uploadSeen = true;
     ecuOutputOff();
     Update.begin(UPDATE_SIZE_UNKNOWN);
   } else if (u.status == UPLOAD_FILE_WRITE) {

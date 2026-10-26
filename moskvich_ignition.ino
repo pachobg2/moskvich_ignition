@@ -162,5 +162,5 @@ void loop() {
 
   server.handleClient();
   dns.processNextRequest();
-  ArduinoOTA.handle();
+  if (!engineRunning()) ArduinoOTA.handle();                        // no network update while the engine turns
 }
