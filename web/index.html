@@ -8,6 +8,7 @@
 <style>
 :root{--bg:#0e1215;--bar:#141a1f;--card:#171e24;--line:#27313a;--tx:#e8eef3;--mut:#8896a3;--acc:#4cc2ff;--ok:#3ecf8e;--warn:#f5b84b;--bad:#ff6b6b;--r:10px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
 header{position:sticky;top:0;z-index:5;background:var(--bar);border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;padding:8px 14px;padding-top:calc(8px + env(safe-area-inset-top))}
@@ -70,6 +71,7 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
   <h1><span class="dot" id="dot"></span>Moskvich ECU <span style="color:var(--mut);font-weight:400" id="fw"></span></h1>
   <span class="badge s4" id="lpgBadge" hidden>LPG</span>
   <span class="badge" id="state">—</span>
+  <button id="langBtn" title="Language / Език">БГ</button>
   <button id="saveBtn" class="pri" disabled>Save</button>
 </header>
 
@@ -190,8 +192,121 @@ const NR = 16, NM = 16;
 let cfg = null, live = null, connected = false;
 const STATES = ['STOPPED', 'CRANKING', 'RUNNING', 'REV CUT', 'TIMING LOCK', 'SIMULATOR'];
 
+const BG = {
+  // --- header / nav / common
+  'Live': 'На живо', 'Map': 'Карта', 'Setup': 'Настройки', 'Tools': 'Инструменти', 'LPG': 'Газ',
+  'Save': 'Запис', 'Saved': 'Записано', 'Unsaved': 'Незаписано',
+  'rpm': 'об/мин', '° BTDC': '° пр. ГМТ',
+  'STOPPED': 'СПРЯН', 'CRANKING': 'СТАРТИРАНЕ', 'RUNNING': 'РАБОТИ', 'REV CUT': 'ОТРЯЗВАНЕ', 'TIMING LOCK': 'ЗАКЛЮЧЕН ЪГЪЛ', 'SIMULATOR': 'СИМУЛАТОР',
+  // --- live
+  'Engine speed': 'Обороти', 'Spark advance': 'Изпреварване на запалването', 'Battery': 'Акумулатор', 'Dwell': 'Заряд на бобината', 'Idle trim': 'Корекция на празния ход',
+  'Last 60 seconds': 'Последните 60 секунди', 'advance': 'изпреварване',
+  // --- map
+  'Ignition timing — petrol (° BTDC)': 'Ъгъл на запалване — бензин (° пр. ГМТ)',
+  'Ignition timing — petrol (° BTDC) — rows: rpm, columns: MAP kPa': 'Ъгъл на запалване — бензин (° пр. ГМТ) — редове: обороти, колони: MAP kPa',
+  'Ignition timing — LPG (° BTDC) — rows: rpm, columns: MAP kPa': 'Ъгъл на запалване — газ (° пр. ГМТ) — редове: обороти, колони: MAP kPa',
+  'Copy petrol map → this LPG map…': 'Копирай бензиновата карта → тази газова карта…',
+  'Set': 'Задай', 'Smooth': 'Изглади', 'Range: off': 'Диапазон: изкл.', 'Range: ON': 'Диапазон: ВКЛ.', 'Undo': 'Отмяна', 'Edit axes': 'Редакция на осите',
+  'Tap a cell to select it. Turn': 'Докоснете клетка, за да я изберете. Включете',
+  'Range': 'Диапазон',
+  'on (or hold Shift on a PC) to tap a second corner. Changes go to the ECU instantly; they are saved to flash when you press Save or the engine stops.': 'за да изберете втори ъгъл (или задръжте Shift на компютър). Промените отиват в блока веднага; записват се във флаш паметта при натискане на „Запис“ или когато двигателят спре.',
+  // --- LPG tab
+  'LPG ignition timing': 'Запалване при газ (LPG)', 'Mode': 'Режим',
+  'Static offset: petrol map + degrees': 'Постоянна добавка: бензиновата карта + градуси', 'Separate LPG map': 'Отделна газова карта',
+  'LPG burns slower than petrol, so it usually wants more advance. The timing switches when the valve signal is present.': 'Газът гори по-бавно от бензина, затова обикновено иска по-голямо изпреварване. Запалването се превключва, когато има сигнал от вентила.',
+  'Static offset': 'Постоянна добавка', '° (+ = more advance)': '° (+ = повече изпреварване)',
+  'Added to every cell of the petrol map while LPG is active (still limited by Max advance and the trigger angle). Changes are eased in, not stepped.': 'Добавя се към всяка клетка на бензиновата карта, докато е активен газът (ограничава се от максималното изпреварване и ъгъла на тригера). Промените се прилагат плавно, не рязко.',
+  'LPG input': 'Вход за газ', 'Valve signal': 'Сигнал от вентила', 'Active map': 'Активна карта', 'Override': 'Принудително избиране',
+  'Auto (follow the valve signal)': 'Автоматично (по сигнала от вентила)', 'Force petrol': 'Принудително бензин', 'Force LPG': 'Принудително газ',
+  'Not saved; resets to Auto on restart. Useful for testing without the valve connected.': 'Не се записва; след рестарт се връща на „Автоматично“. Полезно за тест без свързан вентил.',
+  'Static offset in use': 'Използва се постоянна добавка',
+  'While LPG is active the ECU uses the petrol map': 'Докато е активен газът, блокът използва бензиновата карта',
+  '. Switch the mode to': '. Превключете режима на', 'to edit a full LPG map here.': ', за да редактирате пълна газова карта тук.',
+  'ON': 'ВКЛ.', 'off': 'изкл.', 'Petrol': 'Бензин',
+  // --- setup (static)
+  'Dwell vs battery voltage': 'Заряд на бобината спрямо напрежението на акумулатора',
+  'How long the coil charges before each spark. Measure your coil: current should reach ~3.5–4 A (scope on a shunt) without the IGBT getting hot. Voltage is interpolated between rows.': 'Колко дълго се зарежда бобината преди всяка искра. Измерете своята бобина: токът трябва да достига ~3,5–4 A (осцилоскоп на шънт), без IGBT транзисторът да прегрява. Напрежението се интерполира между редовете.',
+  'Volts': 'Волтове', 'Dwell µs': 'Заряд µs',
+  'MAP sensor': 'MAP сензор', 'Reading': 'Показание', 'Sensor output now:': 'Изходно напрежение на сензора сега:',
+  'Two-point sensor calibration': 'Двуточкова калибровка на сензора', 'Point': 'Точка', 'Sensor mV': 'Сензор mV', '1 (low)': '1 (ниска)', '2 (high)': '2 (висока)',
+  'Capture mV → point 1': 'Вземи mV → точка 1', 'Capture mV → point 2': 'Вземи mV → точка 2', 'Apply': 'Приложи',
+  'Works with any linear 1-bar analog sensor. Typical: point 2 = engine off at atmospheric pressure (type the local kPa, then Capture); point 1 = a known vacuum from a hand pump (e.g. 40 kPa absolute = 60 kPa below atmosphere) — or the datasheet values. Defaults are an MPX4115.': 'Работи с всеки линеен аналогов сензор за 1 бар. Типично: точка 2 = загасен двигател при атмосферно налягане (въведете местното налягане в kPa, после „Вземи“); точка 1 = известен вакуум от ръчна помпа (напр. 40 kPa абсолютно = 60 kPa под атмосферното) — или стойностите от документацията. По подразбиране е MPX4115.',
+  'Calibrate to atmosphere (engine OFF, hose connected)': 'Калибровка по атмосферно налягане (двигател ИЗГАСЕН, маркучът свързан)', 'Calibrate': 'Калибрирай',
+  'Enter the current local pressure (≈101.3 at sea level; ≈ 95 at 500 m). Adjusts the offset only.': 'Въведете текущото местно налягане (≈101,3 на морското равнище; ≈95 на 500 м). Коригира само отместването.',
+  'Apply settings': 'Приложи настройките',
+  // --- tools
+  'Timing light': 'Стробоскоп',
+  'Locks the spark at a fixed advance (ignores the map, idle control and rev retard). Use at idle to confirm the real timing matches what the ECU thinks, then adjust': 'Фиксира искрата на постоянен ъгъл (игнорира картата, управлението на празния ход и закъснението при ограничителя). Използвайте на празен ход, за да потвърдите, че реалният ъгъл съвпада с този, който блокът мисли, после коригирайте',
+  'Trigger angle': 'Ъгъл на тригера', 'in Setup until they agree. Turns itself off when the ECU restarts.': 'в Настройки, докато съвпаднат. Изключва се сам при рестарт на блока.',
+  'Fixed advance': 'Фиксирано изпреварване', 'Lock': 'Заключи', 'Unlock': 'Отключи',
+  'Bench simulator': 'Стендов симулатор',
+  'Generates trigger events internally so you can check spark timing on the bench with a scope or timing light — no engine needed. Remove the coil from the engine harness first; disable before connecting to a running engine.': 'Генерира вътрешно тригер събития, за да проверите ъгъла на искрата на стенд с осцилоскоп или стробоскоп — без двигател. Първо откачете бобината от кабелажа на двигателя; изключете, преди да свържете към работещ двигател.',
+  'Simulated speed:': 'Симулирани обороти:', 'Start': 'Старт', 'Stop': 'Стоп',
+  'Backup': 'Резервно копие', 'Export JSON': 'Експорт JSON', 'Import JSON…': 'Импорт JSON…', 'Includes the full timing map, axes and every setting.': 'Включва цялата карта на запалването, осите и всички настройки.',
+  'Diagnostics': 'Диагностика', 'System': 'Система', 'Firmware update': 'Обновяване на фърмуера', 'Reset everything to defaults…': 'Върни всичко към фабричните настройки…',
+  'Firmware updates and saving need the engine stopped.': 'Обновяването на фърмуера и записът изискват спрян двигател.',
+  'Trigger events': 'Тригер събития', 'Bounce rejected': 'Отхвърлено подскачане на контактите', 'Sparks fired': 'Изпълнени искри', 'Late charge': 'Закъснял заряд',
+  'Dwell limited': 'Ограничен заряд', 'Rev cut events': 'Отрязвания при ограничител', 'Coil failsafe': 'Аварийно изключване на бобината', 'Free heap': 'Свободна памет', 'Uptime': 'Време на работа',
+  // --- setup forms (generated)
+  'Install & trigger': 'Монтаж и тригер', 'Trigger reference': 'Референтен фронт на тригера',
+  'Points OPEN edge — distributor locked at full advance (≈40°)': 'Фронт ОТВАРЯНЕ на контактите — дистрибуторът заключен на пълно изпреварване (≈40°)',
+  'Points CLOSE edge — factory distributor (≈120°)': 'Фронт ЗАТВАРЯНЕ на контактите — фабричен дистрибутор (≈120°)',
+  'OPEN is the most accurate. CLOSE lets you keep the factory 10° distributor (weights blocked at rest, vacuum capsule disconnected), but predicts ~3× further ahead: expect more error while accelerating and cranking, and the closing edge bounces. Changing this sets a typical trigger angle: re-calibrate it with the timing light.': 'ОТВАРЯНЕ е най-точно. ЗАТВАРЯНЕ ви позволява да запазите фабричния дистрибутор с 10° (тежестите блокирани в покой, вакуумната капсула откачена), но предвижда ~3× по-напред: очаквайте по-голяма грешка при ускорение и стартиране, а фронтът на затваряне подскача. Смяната задава типичен ъгъл на тригера: калибрирайте го наново със стробоскоп.',
+  "Crank angle before the firing cylinder's TDC at which the selected points edge occurs. Verify with the timing light (Tools). No map cell can exceed this.": 'Ъгъл на колянния вал преди ГМТ на запалвания цилиндър, при който настъпва избраният фронт на контактите. Проверете със стробоскоп (Инструменти). Никоя клетка от картата не може да го надвишава.',
+  'Points-open angle (cranking)': 'Ъгъл на отваряне на контактите (стартиране)',
+  'Close-edge mode only: where the points OPEN with the factory distributor (static timing, ≈10°). Used as the reference while cranking, because predicting 120° ahead is too coarse at cranking-speed variation.': 'Само в режим „фронт затваряне“: къде се отварят контактите при фабричния дистрибутор (статично запалване, ≈10°). Използва се като референция при стартиране, защото предвиждането на 120° напред е твърде грубо при колебанията на оборотите.',
+  'Trigger edge': 'Фронт на тригера', 'Falling (points open = pin LOW)': 'Падащ (контакти отворени = пин LOW)', 'Rising (points open = pin HIGH)': 'Нарастващ (контакти отворени = пин HIGH)',
+  'Standard NPN input stage: falling.': 'Стандартно входно NPN стъпало: падащ.',
+  'Output latency': 'Закъснение на изхода', 'Fixed delay between ECU decision and spark. Use only after measuring on a scope.': 'Постоянно закъснение между решението на блока и искрата. Използвайте само след измерване с осцилоскоп.',
+  'Acceleration compensation': 'Компенсация при ускорение', 'Extrapolates rpm change between sparks. 0 = off (default).': 'Екстраполира промяната на оборотите между искрите. 0 = изкл. (по подразбиране).',
+  'Cranking': 'Стартиране', 'Cranking below': 'Стартиране под', 'Cranking advance': 'Изпреварване при стартиране',
+  'Retarded start timing. Higher = easier starting but more kick-back risk.': 'Късно запалване при старт. По-високо = по-лесен старт, но повече риск от обратен удар.',
+  'Idle control': 'Управление на празния ход', 'On': 'Вкл.', 'Off': 'Изкл.',
+  'Trims ignition timing to hold the idle speed (carb idle screw sets the base).': 'Коригира запалването, за да държи оборотите на празен ход (винтът на карбуратора задава основата).',
+  'Target idle speed': 'Целеви обороти на празен ход', 'Active below MAP': 'Активно под MAP', 'Closed-throttle detection.': 'Откриване на затворена дроселна клапа.',
+  'Gain (P)': 'Усилване (P)', 'Gain (I)': 'Усилване (I)', '°/100rpm': '°/100 об/мин', '°/100rpm/s': '°/100 об/мин/с', 'Max trim': 'Макс. корекция',
+  'Limits & rev limiter': 'Граници и ограничител на оборотите',
+  'Minimum advance': 'Минимално изпреварване', 'Negative = after TDC.': 'Отрицателно = след ГМТ.',
+  'Maximum advance': 'Максимално изпреварване', 'Hard ceiling on top of the map.': 'Твърд таван върху картата.',
+  'Max change per spark': 'Макс. промяна за искра', 'Smooths jumps from map noise or throttle stabs.': 'Изглажда скокове от шум в картата или рязко газене.',
+  'Soft limit (retard starts)': 'Мек лимит (започва закъснение)', 'Hard limit (spark cut)': 'Твърд лимит (спиране на искрата)', 'Retard at hard limit': 'Закъснение при твърд лимит',
+  'Dwell limits': 'Граници на заряда', 'Minimum dwell': 'Минимален заряд', 'Maximum dwell': 'Максимален заряд',
+  'Hard cap. Check coil/IGBT temperature after changing.': 'Твърд лимит. Проверете температурата на бобината/IGBT след промяна.',
+  'MAP sensor calibration': 'Калибровка на MAP сензора', 'Gain': 'Усилване', 'Offset': 'Отместване',
+  // --- messages
+  'Select a cell first': 'Първо изберете клетка', 'Enter a value': 'Въведете стойност', 'Nothing to undo': 'Няма какво да се отмени',
+  'Send failed:': 'Изпращането не успя:', 'Import failed:': 'Импортът не успя:',
+  'Copied petrol → LPG': 'Копирано бензин → газ', 'Applied': 'Приложено', 'MAP calibration applied': 'Калибровката на MAP е приложена', 'MAP calibrated': 'MAP е калибриран',
+  'Imported': 'Импортирано', 'Defaults loaded': 'Заредени са фабричните стойности', 'Saved to flash': 'Записано във флаш паметта',
+  'Typical values filled in': 'Попълнени са типични стойности', ' (acceleration compensation 100%, cranking advance ≤3°)': ' (компенсация при ускорение 100%, изпреварване при стартиране ≤3°)',
+  ' — press Apply, then calibrate with the timing light': ' — натиснете „Приложи“, после калибрирайте със стробоскоп',
+  'Points too close: need point 2 > point 1 by ≥200 mV and ≥10 kPa': 'Точките са твърде близки: точка 2 трябва да е по-висока от точка 1 с ≥200 mV и ≥10 kPa',
+  'Reset ALL settings and the timing map to defaults?': 'Да се върнат ВСИЧКИ настройки и картата на запалването към фабричните стойности?',
+  'Overwrite the LPG map with the petrol map plus this offset (°):': 'Презапис на газовата карта с бензиновата плюс тази добавка (°):',
+  'bad json': 'неверен JSON', 'engine running - stop it to save': 'двигателят работи — спрете го, за да запишете', 'flash write failed': 'грешка при запис във флаш паметта', 'kpa out of range': 'kPa е извън допустимия диапазон',
+};
+let LANG = 'en';
+try { LANG = new URLSearchParams(location.search).get('lang') || localStorage.getItem('lang') || (/^bg/i.test(navigator.language) ? 'bg' : 'en'); } catch (e) {}
+if (LANG !== 'bg') LANG = 'en';
+const tr = s => (LANG === 'bg' && BG[s]) || s;
+const origText = new WeakMap();
+function applyLang(root = document.body) {          // translate static / generated text nodes (one-way; the language switch reloads the page)
+  if (LANG !== 'bg') return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => /^(SCRIPT|STYLE)$/.test(n.parentNode.nodeName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
+  for (const n of nodes) {
+    const o = n.nodeValue, key = o.trim().replace(/\s+/g, ' ');
+    if (key && BG[key]) n.nodeValue = o.replace(o.trim(), BG[key]);
+  }
+}
+function setLang(l) {
+  try { localStorage.setItem('lang', l); } catch (e) {}
+  const u = new URL(location.href); u.searchParams.set('lang', l); location.href = u.toString();
+}
+
+
 /* ------------------------------------------------------------ helpers */
-function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = 'show' + (err ? ' err' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.className = '', 2600); }
+function toast(msg, err) { const t = $('#toast'); t.textContent = tr(msg); t.className = 'show' + (err ? ' err' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.className = '', 2600); }
 async function api(path, method = 'GET', body) {
   if (MOCK) return mockApi(path, method, body);
   const r = await fetch(path, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
@@ -235,20 +350,20 @@ function showLive(l) {
   $('#v-vbat').textContent = fmt(l.vbat);
   $('#v-dwell').textContent = l.state === 0 ? '–' : fmt(l.dwell / 1000, 2);
   $('#v-trim').textContent = (l.trim > 0 ? '+' : '') + fmt(l.trim);
-  const b = $('#state'); b.textContent = STATES[l.state]; b.className = 'badge s' + l.state;
+  const b = $('#state'); b.textContent = tr(STATES[l.state]); b.className = 'badge s' + l.state;
   const sb = $('#saveBtn');
   sb.disabled = !l.dirty || !l.can_save;
-  sb.textContent = l.dirty ? (l.can_save ? 'Save' : 'Unsaved') : 'Saved';
-  $('#lpgBadge').hidden = !l.lpg; $('#lpgSig').textContent = (l.lpg_in ? 'ON' : 'off') + ' (' + (l.lpg_mv / 1000).toFixed(1) + ' V)'; $('#lpgAct').textContent = l.lpg ? 'LPG' : 'Petrol';
+  sb.textContent = tr(l.dirty ? (l.can_save ? 'Save' : 'Unsaved') : 'Saved');
+  $('#lpgBadge').hidden = !l.lpg; $('#lpgSig').textContent = (l.lpg_in ? tr('ON') : tr('off')) + ' (' + (l.lpg_mv / 1000).toFixed(1) + ' V)'; $('#lpgAct').textContent = tr(l.lpg ? 'LPG' : 'Petrol');
   if (document.activeElement !== $('#lpgOv')) $('#lpgOv').value = l.lpg_ov;
   $('#mapNow').value = fmt(l.map); $('#mapMv').textContent = l.map_mv;
-  $('#btnLock').textContent = l.lock ? 'Unlock' : 'Lock';
+  $('#btnLock').textContent = tr(l.lock ? 'Unlock' : 'Lock');
   $('#btnLock').className = l.lock ? 'pri' : '';
-  $('#btnSim').textContent = l.state === 5 ? 'Stop' : 'Start';
+  $('#btnSim').textContent = tr(l.state === 5 ? 'Stop' : 'Start');
   $('#btnSim').className = l.state === 5 ? 'pri' : '';
   const d = l.diag, rows = [['Trigger events', d.open], ['Bounce rejected', d.bounce], ['Sparks fired', l.sparks], ['Late charge', d.late], ['Dwell limited', d.dwell_limited],
-    ['Rev cut events', d.cut], ['Coil failsafe', d.failsafe], ['MAP sensor', l.map_mv + ' mV (ADC)'], ['Free heap', d.heap], ['Uptime', d.up + ' s']];
-  $('#diag').innerHTML = rows.map(r => `<span>${r[0]}</span><span>${r[1]}</span>`).join('');
+    ['Rev cut events', d.cut], ['Coil failsafe', d.failsafe], ['MAP sensor', l.map_mv + ' mV'], ['Free heap', d.heap], ['Uptime', d.up + ' s']];
+  $('#diag').innerHTML = rows.map(r => `<span>${tr(r[0])}</span><span>${r[1]}</span>`).join('');
   hist.push({ t: Date.now(), rpm: l.rpm, adv: l.adv, map: l.map });
   while (hist.length && Date.now() - hist[0].t > 60000) hist.shift();
   drawChart(); markNear();
@@ -280,7 +395,7 @@ async function poll() {
 async function loadCfg() {
   cfg = await api('/api/config');
   $('#fw').textContent = 'v' + cfg.fw;
-  buildMap(); buildSetup(); fillCal(); refreshLpgTab(); paintMap();
+  buildMap(); buildSetup(); applyLang($('#setupForms')); applyLang($('#dwell')); fillCal(); refreshLpgTab(); paintMap();
 }
 
 /* ------------------------------------------------------------ MAP editor */
@@ -291,7 +406,7 @@ let sel = null, anchor = null, rangeMode = false, axesMode = false, undo = [], p
 const hasSel = () => sel && sel.r0 >= 0;
 function buildMap() {
   const t = cfg.tables, tb = $('#map');
-  let h = '<thead><tr><th>rpm \\ kPa</th>';
+  let h = '<thead><tr><th>' + tr('rpm') + ' \\ kPa</th>';
   for (let j = 0; j < NM; j++) h += `<th>${axesMode ? `<input type=number data-ax=map data-i=${j} value=${t.map_axis[j]}>` : t.map_axis[j]}</th>`;
   h += '</tr></thead><tbody>';
   for (let i = 0; i < NR; i++) {
@@ -347,7 +462,7 @@ function moveMap(slot, m) {
   flushCells();
   $(slot).appendChild($('#mapCard'));
   mapSel = m; undo = []; sel = null;
-  $('#mapTitle').textContent = 'Ignition timing — ' + (m === 'lpg' ? 'LPG' : 'petrol') + ' (° BTDC) — rows: rpm, columns: MAP kPa';
+  $('#mapTitle').textContent = tr(m === 'lpg' ? 'Ignition timing — LPG (° BTDC) — rows: rpm, columns: MAP kPa' : 'Ignition timing — petrol (° BTDC) — rows: rpm, columns: MAP kPa');
   paintMap();
 }
 function refreshLpgTab() {
@@ -371,12 +486,12 @@ async function saveLpg() {
 $('#lpgMode').onchange = saveLpg;
 $('#lpgOffset').onchange = saveLpg;
 $('#btnCopy').onclick = async () => {
-  const o = prompt('Overwrite the LPG map with the petrol map plus this offset (°):', String(cfg.params.lpg_offset || 0));
+  const o = prompt(tr('Overwrite the LPG map with the petrol map plus this offset (°):'), String(cfg.params.lpg_offset || 0));
   if (o === null) return;
   try { await api('/api/copymap', 'POST', { offset: parseFloat(o) || 0 }); await loadCfg(); toast('Copied petrol → LPG'); } catch (e) { toast(e.message, 1); }
 };
 $('#lpgOv').onchange = async e => { try { await api('/api/lpg', 'POST', { override: +e.target.value }); } catch (err) { toast(err.message, 1); } };
-$('#btnRange').onclick = () => { rangeMode = !rangeMode; $('#btnRange').textContent = 'Range: ' + (rangeMode ? 'ON' : 'off'); $('#btnRange').className = rangeMode ? 'pri' : ''; };
+$('#btnRange').onclick = () => { rangeMode = !rangeMode; $('#btnRange').textContent = tr(rangeMode ? 'Range: ON' : 'Range: off'); $('#btnRange').className = rangeMode ? 'pri' : ''; };
 $('#btnAxes').onclick = () => { axesMode = !axesMode; $('#btnAxes').className = axesMode ? 'pri' : ''; buildMap(); paintMap(); };
 
 function pushUndo() { undo.push(curAdv().slice()); if (undo.length > 30) undo.shift(); }
@@ -407,7 +522,7 @@ function queueSend() { clearTimeout(sendT); sendT = setTimeout(flushCells, 180);
 async function flushCells() {
   const cells = [...pending].map(k => [k >> 4, k & 15, curAdv()[k], mapSel === 'lpg' ? 1 : 0]); pending.clear();
   if (!cells.length) return;
-  try { await api('/api/cells', 'POST', cells); } catch (e) { toast('Send failed: ' + e.message, 1); }
+  try { await api('/api/cells', 'POST', cells); } catch (e) { toast(tr('Send failed:') + ' ' + tr(e.message), 1); }
 }
 document.addEventListener('keydown', e => {
   if (!mapActive() || e.target.tagName === 'INPUT') return;
@@ -473,7 +588,7 @@ function buildSetup() {
     f('trigger_adv').value = close ? 120 : 40;
     if (close) { if (+f('crank_adv').value > 3) f('crank_adv').value = 3; f('accel_comp').value = 100; }
     showRef();
-    toast('Typical values filled in' + (close ? ' (acceleration compensation 100%, cranking advance ≤3°)' : '') + ' — press Apply, then calibrate with the timing light');
+    toast(tr('Typical values filled in') + (close ? tr(' (acceleration compensation 100%, cranking advance ≤3°)') : '') + tr(' — press Apply, then calibrate with the timing light'));
   };
   showRef();
   $('#dwell').innerHTML = '<b>Volts</b><b>Dwell µs</b><span></span>' + p.dwell_mv.map((mv, i) =>
@@ -508,10 +623,10 @@ $('#btnExport').onclick = () => {
 $('#btnImport').onclick = () => $('#fileImport').click();
 $('#fileImport').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
-  try { const j = JSON.parse(await f.text()); await api('/api/config', 'POST', { params: j.params, tables: j.tables }); await loadCfg(); toast('Imported'); } catch (err) { toast('Import failed: ' + err.message, 1); }
+  try { const j = JSON.parse(await f.text()); await api('/api/config', 'POST', { params: j.params, tables: j.tables }); await loadCfg(); toast('Imported'); } catch (err) { toast(tr('Import failed:') + ' ' + tr(err.message), 1); }
   e.target.value = '';
 };
-$('#btnDef').onclick = async () => { if (!confirm('Reset ALL settings and the timing map to defaults?')) return; try { await api('/api/defaults', 'POST', { what: 'all' }); await loadCfg(); toast('Defaults loaded'); } catch (e) { toast(e.message, 1); } };
+$('#btnDef').onclick = async () => { if (!confirm(tr('Reset ALL settings and the timing map to defaults?'))) return; try { await api('/api/defaults', 'POST', { what: 'all' }); await loadCfg(); toast('Defaults loaded'); } catch (e) { toast(e.message, 1); } };
 $('#saveBtn').onclick = async () => { try { await api('/api/save', 'POST'); toast('Saved to flash'); } catch (e) { toast(e.message, 1); } };
 
 /* ------------------------------------------------------------ mock backend (open the page from a file or add ?mock) */
@@ -548,6 +663,10 @@ function mockApi(path, method, body) {
   }, 30));
 }
 
+document.documentElement.lang = LANG;
+$('#langBtn').textContent = LANG === 'bg' ? 'EN' : 'БГ';
+$('#langBtn').onclick = () => setLang(LANG === 'bg' ? 'en' : 'bg');
+applyLang();
 poll();
 </script>
 </body>

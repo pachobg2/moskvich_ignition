@@ -239,7 +239,7 @@ static void hBaro() {
 static void hUpdateDone() {
   bool ok = !Update.hasError();
   server.sendHeader("Connection", "close");
-  server.send(ok ? 200 : 500, "text/plain", ok ? "OK - rebooting" : "FAILED");
+  server.send(ok ? 200 : 500, "text/plain; charset=utf-8", ok ? "OK - rebooting / рестартиране" : "FAILED / грешка");
   if (ok) { delay(300); ESP.restart(); }
 }
 
@@ -276,18 +276,18 @@ static void webBegin() {
   server.on("/api/baro", HTTP_POST, hBaro);
   server.on("/update", HTTP_GET, []() {
     if (!authOk()) return;
-    if (engineRunning()) return server.send(409, "text/plain", "Stop the engine first");
+    if (engineRunning()) return server.send(409, "text/plain; charset=utf-8", "Stop the engine first / Първо спрете двигателя");
     server.send(200, "text/html",
-      "<meta name=viewport content='width=device-width'><body style='font-family:sans-serif;padding:16px'>"
-      "<h3>Firmware update</h3><form method=POST enctype=multipart/form-data>"
-      "<input type=file name=fw accept='.bin'><br><br><button>Upload</button></form>");
+      "<meta charset=utf-8><meta name=viewport content='width=device-width'><body style='font-family:sans-serif;padding:16px'>"
+      "<h3>Firmware update / Обновяване на фърмуера</h3><form method=POST enctype=multipart/form-data>"
+      "<input type=file name=fw accept='.bin'><br><br><button>Upload / Качване</button></form>");
   });
   server.on("/update", HTTP_POST, []() { if (authOk()) hUpdateDone(); },
             []() { if (server.authenticate("admin", OTA_PASSWORD) && !engineRunning()) hUpdateUpload(); });
   // captive portal: anything else goes to the app
   server.onNotFound([]() {
     server.sendHeader("Location", "http://192.168.4.1/", true);
-    server.send(302, "text/plain", "");
+    server.send(302, "text/plain; charset=utf-8", "");
   });
   server.begin();
   dns.start(53, "*", WiFi.softAPIP());

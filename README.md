@@ -105,7 +105,8 @@ c++ -O2 -std=c++17 -I. test/test_core.cpp -o test/test_core && ./test/test_core
    The cells around the current operating point glow while the engine runs.
 4. **Setup** — trigger angle, cranking, idle, limits, dwell table, MAP sensor two-point calibration.
    **LPG** — mode, static offset or the separate LPG map, valve-signal status, override.
-5. **Tools** — timing-light lock, bench simulator, JSON backup/restore, reset, firmware update.
+5. **Language** — the **БГ / EN** button in the header switches the whole interface between Bulgarian and English (remembered per browser; `?lang=bg` in the URL also works). The default follows the browser language. Translations live in the `BG` table in `web/index.html`; the firmware-upload page is bilingual.
+6. **Tools** — timing-light lock, bench simulator, JSON backup/restore, reset, firmware update.
 
 Install, wiring and the timing-light calibration procedure are in
 [docs/HARDWARE.md](docs/HARDWARE.md).
@@ -132,3 +133,4 @@ Install, wiring and the timing-light calibration procedure are in
 | 1.2.0 | 2026-10-27 | LPG timing: 12 V valve-signal input (GPIO3, hysteresis + debounce), static-offset mode or separate LPG map, copy petrol → LPG (+offset), manual override, LPG badge in the UI. Settings from 1.1.0 are discarded on first boot (defaults load). |
 | 1.2.1 | 2026-10-27 | UI: LPG settings moved to their own tab; the LPG map is only shown in "Separate LPG map" mode (static-offset mode shows just the offset). |
 | 1.3.0 | 2026-10-27 | Setup: choice of trigger reference — points OPEN edge (distributor locked at full advance, ~40°) or points CLOSE edge (factory distributor, ~120°) with automatic OPEN-edge cranking reference; trigger angle range up to 160°; extended host tests. Settings from 1.2.x are discarded on first boot (defaults load). |
+| 1.4.0 | 2026-10-27 | Web interface available in Bulgarian (БГ/EN switch, default from browser language), bilingual firmware-upload page; fix: elements marked hidden (e.g. the LPG copy button on the petrol map) were still shown. |
