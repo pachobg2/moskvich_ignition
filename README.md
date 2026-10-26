@@ -36,11 +36,11 @@ WiFi network — no app to install, no router needed.
 * **Timing map**: 16 rpm × 16 MAP bins, bilinear interpolation, ± idle trim,
   rev-limit retard, slew limit per spark, min/max clamps.
 * **LPG**: a 12 V signal from the LPG valve (GPIO3 via divider) switches the
-  timing. Two modes (Setup → LPG): **static offset** (petrol map + N degrees,
-  default +3°) or a **separate LPG map** (Map tab → LPG map, with *Copy petrol → LPG*
-  and an optional offset). The change is slewed in at the normal per-spark limit,
+  timing. Two modes (LPG tab): **static offset** (petrol map + N degrees,
+  default +3°; no map is shown) or a **separate LPG map** (edited on the LPG tab, with
+  *Copy petrol → LPG* and an optional offset). The change is slewed in at the normal per-spark limit,
   never stepped. A *Force petrol / Force LPG* override in Setup helps testing without
-  the valve connected.
+  the valve connected (LPG tab).
 * **Cranking** uses a fixed retarded advance below `crank rpm`.
 * **Rev limiter**: retard ramp from the soft limit, spark cut above the hard limit.
 * **Idle control**: PI loop that nudges timing to hold the target idle rpm
@@ -92,9 +92,10 @@ c++ -O2 -std=c++17 -I. test/test_core.cpp -o test/test_core && ./test/test_core
 1. Join WiFi **Moskvich-ECU** (password from `config.h`); the app opens as a
    captive portal, or browse to `http://192.168.4.1`.
 2. **Live** — rpm, advance, MAP, battery, dwell, 60 s chart.
-3. **Map** — petrol/LPG map toggle, tap cells, ±0.5/±1, Set, Smooth, Range select, Undo, editable axes.
+3. **Map** — petrol map: tap cells, ±0.5/±1, Set, Smooth, Range select, Undo, editable axes.
    The cells around the current operating point glow while the engine runs.
 4. **Setup** — trigger angle, cranking, idle, limits, dwell table, MAP sensor two-point calibration.
+   **LPG** — mode, static offset or the separate LPG map, valve-signal status, override.
 5. **Tools** — timing-light lock, bench simulator, JSON backup/restore, reset, firmware update.
 
 Install, wiring and the timing-light calibration procedure are in
@@ -120,3 +121,4 @@ Install, wiring and the timing-light calibration procedure are in
 | 1.0.0 | 2026-10-26 | Initial release: points-trigger delay-only timing, 16×16 rpm×MAP map, voltage-compensated dwell, cranking/idle/rev-limit logic, WiFi AP web tuner (live data, map editor, setup, timing-light lock, bench simulator, backup, OTA), host-side engine-model tests. |
 | 1.1.0 | 2026-10-27 | MAP sensor two-point calibration in Setup (any linear 1-bar analog sensor, e.g. GM/Lada/Bosch; capture-from-live-reading buttons); `MAP_SLOPE`/`MAP_OFFSET`/`MAP_SUPPLY_MV` removed from `config.h`. Stored settings from 1.0.0 are discarded on first boot (defaults load). |
 | 1.2.0 | 2026-10-27 | LPG timing: 12 V valve-signal input (GPIO3, hysteresis + debounce), static-offset mode or separate LPG map, copy petrol → LPG (+offset), manual override, LPG badge in the UI. Settings from 1.1.0 are discarded on first boot (defaults load). |
+| 1.2.1 | 2026-10-27 | UI: LPG settings moved to their own tab; the LPG map is only shown in "Separate LPG map" mode (static-offset mode shows just the offset). |

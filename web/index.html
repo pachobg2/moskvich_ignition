@@ -90,10 +90,9 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
 
 <!-- ============================ MAP ============================ -->
 <section class="tab" id="t-map">
-  <div class="card">
-    <h2>Ignition timing (° BTDC) — rows: rpm, columns: MAP kPa</h2>
-    <div class="tools"><button id="selMain" class="pri">Petrol map</button><button id="selLpg">LPG map</button><button id="btnCopy">Copy petrol → LPG…</button></div>
-    <div class="warn" id="lpgNote" hidden>LPG mode is set to <b>static offset</b> (Setup → LPG), so this LPG map is not used. Switch the mode to “Separate LPG map” to use it.</div>
+  <div class="card" id="mapCard">
+    <h2 id="mapTitle">Ignition timing — petrol (° BTDC)</h2>
+    <div class="tools" id="copyRow" hidden><button id="btnCopy">Copy petrol map → this LPG map…</button></div>
     <div class="tools">
       <button data-d="-1">−1</button><button data-d="-0.5">−0.5</button><button data-d="0.5">+0.5</button><button data-d="1">+1</button>
       <input type="number" id="setv" step="0.5" placeholder="°"><button id="btnSet">Set</button>
@@ -107,18 +106,35 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
   </div>
 </section>
 
+<!-- ============================ LPG ============================ -->
+<section class="tab" id="t-lpg">
+  <div class="card"><h2>LPG ignition timing</h2>
+    <div class="fgrid">
+      <div class="f"><label>Mode</label>
+        <select id="lpgMode"><option value="0">Static offset: petrol map + degrees</option><option value="1">Separate LPG map</option></select>
+        <small>LPG burns slower than petrol, so it usually wants more advance. The timing switches when the valve signal is present.</small></div>
+      <div class="f" id="lpgOffWrap"><label>Static offset</label>
+        <div class="row"><input type="number" id="lpgOffset" min="-10" max="15" step="0.5"><span class="u">° (+ = more advance)</span></div>
+        <small>Added to every cell of the petrol map while LPG is active (still limited by Max advance and the trigger angle). Changes are eased in, not stepped.</small></div>
+    </div>
+  </div>
+  <div class="card"><h2>LPG input</h2>
+    <div class="kv"><span>Valve signal</span><span id="lpgSig">–</span><span>Active map</span><span id="lpgAct">–</span></div>
+    <div class="f" style="margin-top:10px"><label>Override</label>
+      <select id="lpgOv"><option value="0">Auto (follow the valve signal)</option><option value="1">Force petrol</option><option value="2">Force LPG</option></select>
+      <small>Not saved; resets to Auto on restart. Useful for testing without the valve connected.</small></div>
+  </div>
+  <div class="card" id="lpgStatic"><h2>Static offset in use</h2>
+    <div style="font-size:15px">While LPG is active the ECU uses the petrol map <b id="lpgOffTxt">+3.0°</b>. Switch the mode to <b>Separate LPG map</b> to edit a full LPG map here.</div></div>
+  <div id="lpgMapSlot"></div>
+</section>
+
 <!-- ============================ SETUP ============================ -->
 <section class="tab" id="t-setup">
   <div id="setupForms"></div>
   <div class="card"><h2>Dwell vs battery voltage</h2>
     <div class="dw" id="dwell"></div>
     <small style="color:var(--mut)">How long the coil charges before each spark. Measure your coil: current should reach ~3.5–4 A (scope on a shunt) without the IGBT getting hot. Voltage is interpolated between rows.</small></div>
-  <div class="card"><h2>LPG input</h2>
-    <div class="kv"><span>Valve signal</span><span id="lpgSig">–</span><span>Active map</span><span id="lpgAct">–</span></div>
-    <div class="f" style="margin-top:10px"><label>Override</label>
-      <select id="lpgOv"><option value="0">Auto (follow the valve signal)</option><option value="1">Force petrol map</option><option value="2">Force LPG map</option></select>
-      <small>Override is not saved; it resets to Auto on restart. Useful for testing without the valve connected.</small></div>
-  </div>
   <div class="card"><h2>MAP sensor</h2>
     <div class="f"><label>Reading</label><div class="row"><input type="text" id="mapNow" readonly><span class="u">kPa</span></div>
       <small>Sensor output now: <b id="mapMv">–</b> mV</small></div>
@@ -160,6 +176,7 @@ input[type=number],input[type=text],select{background:#0b1114;border:1px solid v
 <nav>
   <button class="act" data-tab="live">Live</button>
   <button data-tab="map">Map</button>
+  <button data-tab="lpg">LPG</button>
   <button data-tab="setup">Setup</button>
   <button data-tab="tools">Tools</button>
 </nav>
@@ -202,7 +219,8 @@ function lookup(t, rpm, map, a = t.adv) {
 $$('nav button').forEach(b => b.onclick = () => {
   $$('nav button').forEach(x => x.classList.toggle('act', x === b));
   $$('.tab').forEach(t => t.classList.toggle('act', t.id === 't-' + b.dataset.tab));
-  if (b.dataset.tab === 'map') paintMap();
+  if (b.dataset.tab === 'map') moveMap('#t-map', 'main');
+  if (b.dataset.tab === 'lpg') refreshLpgTab();
 });
 
 /* ------------------------------------------------------------ live */
@@ -262,11 +280,12 @@ async function poll() {
 async function loadCfg() {
   cfg = await api('/api/config');
   $('#fw').textContent = 'v' + cfg.fw;
-  buildMap(); buildSetup(); fillCal(); paintMap();
+  buildMap(); buildSetup(); fillCal(); refreshLpgTab(); paintMap();
 }
 
 /* ------------------------------------------------------------ MAP editor */
 let mapSel = 'main';
+const mapActive = () => $('#mapCard').closest('.tab').classList.contains('act');
 const curAdv = () => mapSel === 'lpg' ? cfg.tables.adv_lpg : cfg.tables.adv;
 let sel = null, anchor = null, rangeMode = false, axesMode = false, undo = [], pending = new Set(), sendT = null, tds = [];
 const hasSel = () => sel && sel.r0 >= 0;
@@ -295,10 +314,9 @@ function cellColor(v) { // blue (low) -> green -> amber -> red (high)
   return `hsl(${Math.round(215 - f * 215)} 70% ${58 - f * 4}%)`;
 }
 function paintMap() {
-  if (!cfg || !$('#t-map').classList.contains('act')) return;
+  if (!cfg || !mapActive()) return;
   const a = curAdv();
-  $('#selMain').className = mapSel === 'main' ? 'pri' : ''; $('#selLpg').className = mapSel === 'lpg' ? 'pri' : '';
-  $('#btnCopy').hidden = mapSel !== 'lpg'; $('#lpgNote').hidden = !(mapSel === 'lpg' && cfg.params.lpg_mode === 0);
+  $('#copyRow').hidden = mapSel !== 'lpg';
   tds.forEach((td, k) => {
     const v = a[k];
     td.textContent = v.toFixed(1);
@@ -311,7 +329,7 @@ function paintMap() {
 function markNear() {
   if (!cfg || !live || !tds.length) return;
   tds.forEach(td => td.classList.remove('near', 'hot'));
-  if (live.state === 0 || !$('#t-map').classList.contains('act')) return;
+  if (live.state === 0 || !mapActive()) return;
   const [r, fr] = axisFind(cfg.tables.rpm_axis, live.rpm), [c, fc] = axisFind(cfg.tables.map_axis, live.map);
   for (const [dr, dc] of [[0, 0], [0, 1], [1, 0], [1, 1]]) tds[(r + dr) * NM + c + dc].classList.add('near');
   tds[(r + (fr >= .5 ? 1 : 0)) * NM + c + (fc >= .5 ? 1 : 0)].classList.add('hot');
@@ -325,9 +343,33 @@ $('#map').addEventListener('mousedown', e => { const td = e.target.closest('td')
 $('#map').addEventListener('mouseover', e => { if (!(e.buttons & 1)) return; const td = e.target.closest('td'); if (td && anchor) setSel(+td.dataset.r, +td.dataset.c, true); });
 $('#map').addEventListener('touchend', e => { const td = e.target.closest('td'); if (!td || e.touches.length) return; /* tap handled by click */ });
 $('#map').addEventListener('click', e => { if (e.detail === 0 || e.pointerType === 'touch' || e.pointerType === 'pen') { const td = e.target.closest('td'); if (td) setSel(+td.dataset.r, +td.dataset.c, rangeMode); } });
-function selectMap(m) { flushCells(); mapSel = m; undo = []; sel = null; paintMap(); }
-$('#selMain').onclick = () => selectMap('main');
-$('#selLpg').onclick = () => selectMap('lpg');
+function moveMap(slot, m) {
+  flushCells();
+  $(slot).appendChild($('#mapCard'));
+  mapSel = m; undo = []; sel = null;
+  $('#mapTitle').textContent = 'Ignition timing — ' + (m === 'lpg' ? 'LPG' : 'petrol') + ' (° BTDC) — rows: rpm, columns: MAP kPa';
+  paintMap();
+}
+function refreshLpgTab() {
+  if (!cfg) return;
+  const sep = cfg.params.lpg_mode === 1;
+  if (document.activeElement !== $('#lpgMode')) $('#lpgMode').value = cfg.params.lpg_mode;
+  if (document.activeElement !== $('#lpgOffset')) $('#lpgOffset').value = cfg.params.lpg_offset;
+  $('#lpgOffWrap').hidden = sep;
+  $('#lpgStatic').hidden = sep;
+  $('#lpgOffTxt').textContent = (cfg.params.lpg_offset >= 0 ? '+' : '') + Number(cfg.params.lpg_offset).toFixed(1) + '°';
+  if (!$('#t-lpg').classList.contains('act')) return;
+  if (sep) moveMap('#lpgMapSlot', 'lpg');
+  else if (mapSel === 'lpg') moveMap('#t-map', 'main');
+}
+async function saveLpg() {
+  cfg.params.lpg_mode = +$('#lpgMode').value;
+  cfg.params.lpg_offset = parseFloat($('#lpgOffset').value) || 0;
+  try { await api('/api/config', 'POST', { params: { lpg_mode: cfg.params.lpg_mode, lpg_offset: cfg.params.lpg_offset } }); } catch (e) { toast(e.message, 1); }
+  refreshLpgTab();
+}
+$('#lpgMode').onchange = saveLpg;
+$('#lpgOffset').onchange = saveLpg;
 $('#btnCopy').onclick = async () => {
   const o = prompt('Overwrite the LPG map with the petrol map plus this offset (°):', String(cfg.params.lpg_offset || 0));
   if (o === null) return;
@@ -368,7 +410,7 @@ async function flushCells() {
   try { await api('/api/cells', 'POST', cells); } catch (e) { toast('Send failed: ' + e.message, 1); }
 }
 document.addEventListener('keydown', e => {
-  if (!$('#t-map').classList.contains('act') || e.target.tagName === 'INPUT') return;
+  if (!mapActive() || e.target.tagName === 'INPUT') return;
   if (e.key === 'ArrowUp' || e.key === '+') { forSel((s, r, c, v) => v + 0.5); e.preventDefault(); }
   if (e.key === 'ArrowDown' || e.key === '-') { forSel((s, r, c, v) => v - 0.5); e.preventDefault(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') $('#btnUndo').click();
@@ -393,10 +435,6 @@ const SETUP = [
     { k: 'idle_kp', l: 'Gain (P)', u: '°/100rpm', min: 0, max: 10, step: 0.1 },
     { k: 'idle_ki', l: 'Gain (I)', u: '°/100rpm/s', min: 0, max: 10, step: 0.1 },
     { k: 'idle_trim_max', l: 'Max trim', u: '± °', min: 0, max: 15, step: 0.5 },
-  ] },
-  { title: 'LPG timing', f: [
-    { k: 'lpg_mode', l: 'LPG mode', t: 'sel', o: [[0, 'Static offset: petrol map + degrees'], [1, 'Separate LPG map (Map tab)']], h: 'LPG burns slower, so it usually wants more advance than petrol. The map switches when the valve signal is present.' },
-    { k: 'lpg_offset', l: 'Static offset', u: '° (+ = more advance)', min: -10, max: 15, step: 0.5, h: 'Added to every cell of the petrol map while LPG is active (still limited by Max advance and the trigger angle). Changes are slewed in, not stepped.' },
   ] },
   { title: 'Limits & rev limiter', f: [
     { k: 'min_adv', l: 'Minimum advance', u: '° BTDC', min: -20, max: 20, step: 0.5, h: 'Negative = after TDC.' },
